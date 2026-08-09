@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#09090b" id="theme-color-meta" />
+    <title>Sahil Edits – Premium AI Prompt Library</title>
+    <meta name="description" content="Sahil Edits – The ultimate curated AI Prompt Library for ChatGPT, Gemini, Claude, Midjourney, and Flux. Copy with 1-click." />
+    <meta name="robots" content="index, follow" id="seo-robots-meta" />
+    <link rel="canonical" href="https://sahiledit.vercel.app/" id="seo-canonical-link" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" id="seo-og-type" />
+    <meta property="og:url" content="https://sahiledit.vercel.app/" id="seo-og-url" />
+    <meta property="og:title" content="Sahil Edits – Premium AI Prompt Library" id="seo-og-title" />
+    <meta property="og:description" content="Sahil Edits – The ultimate curated AI Prompt Library for ChatGPT, Gemini, Claude, Midjourney, and Flux. Copy with 1-click." id="seo-og-description" />
+    <meta property="og:image" content="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80" id="seo-og-image" />
+    <meta property="og:site_name" content="Sahil Edits" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" id="seo-twitter-card" />
+    <meta name="twitter:url" content="https://sahiledit.vercel.app/" id="seo-twitter-url" />
+    <meta name="twitter:title" content="Sahil Edits – Premium AI Prompt Library" id="seo-twitter-title" />
+    <meta name="twitter:description" content="Sahil Edits – The ultimate curated AI Prompt Library for ChatGPT, Gemini, Claude, Midjourney, and Flux. Copy with 1-click." id="seo-twitter-description" />
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80" id="seo-twitter-image" />
+
+    <!-- WebSite & Organization JSON-LD Structured Data -->
+    <script id="seo-jsonld-website" type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://sahiledit.vercel.app/#website",
+          "url": "https://sahiledit.vercel.app/",
+          "name": "Sahil Edits",
+          "description": "Premium AI Prompt Library for ChatGPT, Gemini, Claude, Midjourney & Flux",
+          "publisher": {
+            "@id": "https://sahiledit.vercel.app/#organization"
+          },
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://sahiledit.vercel.app/?search={search_term_string}",
+            "query-input": "required name=search_term_string"
+          }
+        },
+        {
+          "@type": "Organization",
+          "@id": "https://sahiledit.vercel.app/#organization",
+          "name": "Sahil Edits",
+          "url": "https://sahiledit.vercel.app/",
+          "logo": "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80",
+          "sameAs": [
+            "https://youtube.com/@sahiledits",
+            "https://instagram.com/sahiledits"
+          ]
+        }
+      ]
+    }
+    </script>
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('sahil-edits-theme') || localStorage.getItem('sahil_edits_theme');
+          var theme = saved === 'light' ? 'light' : 'dark';
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+            document.documentElement.classList.remove('light');
+          } else {
+            document.documentElement.classList.add('light');
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <style>
+      html, body, #root {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #0F172A;
+        color: #f4f4f5;
+        overflow-x: hidden;
+      }
+    </style>
+  </head>
+  <body class="bg-[#0F172A] text-zinc-100 transition-colors duration-200">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

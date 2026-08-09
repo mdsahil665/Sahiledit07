@@ -1,0 +1,6 @@
+{
+  "name": "Sahil Edits",
+  "description": "Sahil Edits – Premium AI Prompt Library & Sharing Platform",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

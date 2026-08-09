@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "PromptPost": {
+      "title": "PromptPost",
+      "description": "An AI prompt template post",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 200 },
+        "shortDescription": { "type": "string", "maxLength": 500 },
+        "fullPrompt": { "type": "string", "maxLength": 10000 },
+        "categoryId": { "type": "string", "maxLength": 100 },
+        "categoryName": { "type": "string", "maxLength": 100 },
+        "tags": { "type": "array" },
+        "imageUrl": { "type": "string", "maxLength": 2000 },
+        "views": { "type": "number" },
+        "copies": { "type": "number" },
+        "featured": { "type": "boolean" },
+        "trending": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["published", "draft", "scheduled"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "pinned": { "type": "boolean" },
+        "seoTitle": { "type": "string", "maxLength": 200 },
+        "metaDescription": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["title", "shortDescription", "fullPrompt", "categoryId", "status"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Prompt Category",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "slug": { "type": "string", "maxLength": 100 },
+        "icon": { "type": "string", "maxLength": 50 },
+        "color": { "type": "string", "maxLength": 50 },
+        "bgLight": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 500 },
+        "count": { "type": "number" }
+      },
+      "required": ["name", "slug", "icon", "color"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "Log of recent actions",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "message": { "type": "string", "maxLength": 500 },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["type", "message", "timestamp"]
+    },
+    "User": {
+      "title": "User",
+      "description": "User profile document",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email"]
+    }
+  },
+  "firestore": {
+    "/prompts/{promptId}": {
+      "schema": { "$ref": "#/entities/PromptPost" },
+      "description": "Collection of all prompt templates"
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Collection of categories"
+    },
+    "/activities/{activityId}": {
+      "schema": { "$ref": "#/entities/Activity" },
+      "description": "Recent activity logs"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    }
+  }
+}

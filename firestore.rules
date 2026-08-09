@@ -1,0 +1,109 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Catch-All Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'mdsahil012002@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidPrompt(data) {
+      return data.title is string && data.title.size() <= 200
+        && data.shortDescription is string && data.shortDescription.size() <= 500
+        && data.fullPrompt is string && data.fullPrompt.size() <= 10000
+        && data.categoryId is string && data.categoryId.size() <= 100
+        && data.status in ['published', 'draft', 'scheduled'];
+    }
+
+    match /test/{document} {
+      allow read, get, list: if true;
+    }
+
+    match /prompts/{promptId} {
+      allow get, list: if true;
+      allow create: if isValidId(promptId) && (isAdmin() || isSignedIn()) && isValidPrompt(incoming());
+      allow update: if isValidId(promptId) && (
+        isAdmin() ||
+        (isSignedIn() && isValidPrompt(incoming())) ||
+        (incoming().diff(existing()).affectedKeys().hasOnly(['views']) && incoming().views == existing().views + 1) ||
+        (incoming().diff(existing()).affectedKeys().hasOnly(['copies']) && incoming().copies == existing().copies + 1) ||
+        (incoming().diff(existing()).affectedKeys().hasAny(['likes']) && incoming().diff(existing()).affectedKeys().hasOnly(['likes', 'updatedAt']))
+      );
+      allow delete: if isValidId(promptId) && (isAdmin() || isSignedIn());
+    }
+
+    match /categories/{categoryId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(categoryId) && (isAdmin() || isSignedIn());
+    }
+
+    match /pages/{pageId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(pageId) && (isAdmin() || isSignedIn());
+    }
+
+    match /settings/{settingId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(settingId) && (isAdmin() || isSignedIn());
+    }
+
+    match /comments/{commentId} {
+      allow get, list: if true;
+      allow create: if isValidId(commentId);
+      allow update, delete: if isValidId(commentId) && (isAdmin() || isSignedIn());
+    }
+
+    match /ratings/{ratingId} {
+      allow get, list: if true;
+      allow create, update: if true;
+      allow delete: if isAdmin();
+    }
+
+    match /feedbacks/{feedbackId} {
+      allow get, list: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    match /activities/{activityId} {
+      allow get, list: if true;
+      allow create: if isValidId(activityId) && (isSignedIn() || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+  }
+}
