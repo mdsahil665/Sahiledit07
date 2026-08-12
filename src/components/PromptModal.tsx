@@ -135,18 +135,28 @@ export const PromptModal: React.FC<PromptModalProps> = ({
 
   const galleryImages: string[] = useMemo(() => {
     if (!post) return [];
-    // If post has explicit images array, use it directly to preserve admin order
+
+    // 1. Primary multi-image array field
     if (post.images && Array.isArray(post.images) && post.images.length > 0) {
-      return post.images.filter((img): img is string => typeof img === 'string' && img.trim().length > 0);
+      const valid = post.images.filter((img): img is string => typeof img === 'string' && img.trim().length > 0);
+      if (valid.length > 0) return valid;
     }
-    const list: string[] = [];
-    if (post.imageUrl) list.push(post.imageUrl);
-    if ((post as any).gallery && Array.isArray((post as any).gallery)) {
-      (post as any).gallery.forEach((img: string) => {
-        if (img && typeof img === 'string' && !list.includes(img)) list.push(img);
-      });
+
+    // 2. Secondary gallery field if present on document
+    if ((post as any).gallery && Array.isArray((post as any).gallery) && (post as any).gallery.length > 0) {
+      const valid = (post as any).gallery.filter((img: any): img is string => typeof img === 'string' && img.trim().length > 0);
+      if (valid.length > 0) return valid;
     }
-    return list.length > 0 ? list : [post.imageUrl];
+
+    // 3. Single image fallback fields
+    if (post.imageUrl && typeof post.imageUrl === 'string' && post.imageUrl.trim().length > 0) {
+      return [post.imageUrl];
+    }
+    if ((post as any).image && typeof (post as any).image === 'string' && (post as any).image.trim().length > 0) {
+      return [(post as any).image];
+    }
+
+    return [];
   }, [post]);
 
   useEffect(() => {

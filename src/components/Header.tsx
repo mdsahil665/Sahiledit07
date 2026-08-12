@@ -367,6 +367,27 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
 
                 <div className="space-y-2">
+                  {/* Theme Toggle in Mobile Drawer */}
+                  {fc.darkMode && (
+                    <button
+                      type="button"
+                      onClick={toggleTheme}
+                      className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-semibold text-sm transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        {theme === 'dark' ? (
+                          <Sun className="w-4 h-4 text-amber-400" />
+                        ) : (
+                          <Moon className="w-4 h-4 text-blue-600" />
+                        )}
+                        <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+                      </div>
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-bold uppercase">
+                        {theme === 'dark' ? 'OFF' : 'ON'}
+                      </span>
+                    </button>
+                  )}
+
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block px-1">
                     Categories
                   </span>

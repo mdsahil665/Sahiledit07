@@ -574,7 +574,7 @@ function AppContent() {
   }
 
   return (
-    <div className="relative min-h-screen flex flex-col justify-between bg-[#F8FAFC] bg-gradient-to-b from-[#EEF2FF] via-[#F8FAFC] to-[#F1F5F9] text-slate-800 transition-colors duration-300 font-sans selection:bg-purple-500/20 selection:text-purple-600 overflow-x-hidden">
+    <div className="relative min-h-screen flex flex-col justify-between bg-[#F8FAFC] dark:bg-[#090d16] bg-gradient-to-b from-[#EEF2FF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#090d16] dark:via-[#0f172a] dark:to-[#090d16] text-slate-800 dark:text-slate-100 transition-colors duration-300 font-sans selection:bg-purple-500/20 selection:text-purple-600 overflow-x-hidden">
       {/* SEO Dynamic Metadata & JSON-LD Manager */}
       <SEOHelper
         activePrompt={activePromptModal}
@@ -586,9 +586,9 @@ function AppContent() {
 
       {/* Layered Background Glow Blobs */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-blue-300/15 rounded-full blur-[140px]" />
-        <div className="absolute top-1/3 -right-40 w-[600px] h-[600px] bg-purple-300/15 rounded-full blur-[160px]" />
-        <div className="absolute bottom-10 left-1/4 w-[500px] h-[500px] bg-indigo-300/15 rounded-full blur-[140px]" />
+        <div className="absolute -top-40 -left-40 w-[500px] h-[500px] bg-blue-300/15 dark:bg-blue-600/10 rounded-full blur-[140px]" />
+        <div className="absolute top-1/3 -right-40 w-[600px] h-[600px] bg-purple-300/15 dark:bg-purple-600/10 rounded-full blur-[160px]" />
+        <div className="absolute bottom-10 left-1/4 w-[500px] h-[500px] bg-indigo-300/15 dark:bg-indigo-600/10 rounded-full blur-[140px]" />
       </div>
 
       <div className="relative z-10 flex flex-col justify-between min-h-screen w-full">

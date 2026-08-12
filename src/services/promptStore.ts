@@ -850,6 +850,8 @@ class PromptStore {
         }
         updateDataForFirestore.imageUrl = finalImg;
       }
+      if (cleanUpdates.images !== undefined) updateDataForFirestore.images = cleanUpdates.images;
+      if ((cleanUpdates as any).gallery !== undefined) updateDataForFirestore.gallery = (cleanUpdates as any).gallery;
       if (cleanUpdates.featured !== undefined) updateDataForFirestore.featured = cleanUpdates.featured;
       if (cleanUpdates.trending !== undefined) updateDataForFirestore.trending = cleanUpdates.trending;
       if (cleanUpdates.status !== undefined) updateDataForFirestore.status = cleanUpdates.status;

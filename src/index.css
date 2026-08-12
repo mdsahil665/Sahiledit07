@@ -1,39 +1,36 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 html,
 body,
 #root {
   min-height: 100%;
+  width: 100%;
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
-}
-
-/* Explicit deterministic backgrounds - no device-dependent light/dark system overrides */
-html,
-body,
-#root {
-  background-color: #0F172A !important;
-  color: #f4f4f5 !important;
-  width: 100%;
   overflow-x: hidden;
 }
 
 html.dark,
 html.dark body,
 html.dark #root {
-  background-color: #0F172A !important;
-  color: #f4f4f5 !important;
+  background-color: #090d16;
+  color: #f8fafc;
+  color-scheme: dark;
 }
 
 html.light,
 html.light body,
 html.light #root {
-  background-color: #0F172A !important;
-  color: #f4f4f5 !important;
+  background-color: #f8fafc;
+  color: #0f172a;
+  color-scheme: light;
 }
 
 body {
   overflow-x: hidden;
   transition: background-color 0.2s ease, color 0.2s ease;
 }
+

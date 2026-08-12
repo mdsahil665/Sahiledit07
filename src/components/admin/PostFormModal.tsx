@@ -54,7 +54,9 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
     if (post) {
       const existingImgs = post.images && Array.isArray(post.images) && post.images.length > 0
         ? [...post.images]
-        : (post.imageUrl ? [post.imageUrl] : []);
+        : ((post as any).gallery && Array.isArray((post as any).gallery) && (post as any).gallery.length > 0
+          ? [...(post as any).gallery]
+          : (post.imageUrl ? [post.imageUrl] : ((post as any).image ? [(post as any).image] : [])));
       setGalleryImages(existingImgs);
       setImageUrl(existingImgs[0] || post.imageUrl || '');
       setTitle(post.title || '');
