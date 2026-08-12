@@ -66,6 +66,7 @@ export interface PromptPost {
   tags: string[];
   imageUrl: string;
   images?: string[];
+  gallery?: string[];
   views: number;
   copies: number;
   likes?: number;

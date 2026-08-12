@@ -242,6 +242,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
         tags: parsedTags,
         imageUrl: coverUrl,
         images: processedGallery,
+        gallery: processedGallery,
         featured,
         trending,
         status,

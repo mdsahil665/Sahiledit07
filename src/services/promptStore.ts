@@ -389,13 +389,26 @@ class PromptStore {
                 ? existingInCache.likes
                 : 0;
 
+            const docImages =
+              data.images && Array.isArray(data.images) && data.images.length > 0
+                ? data.images
+                : data.gallery && Array.isArray(data.gallery) && data.gallery.length > 0
+                ? data.gallery
+                : data.imageUrl
+                ? [data.imageUrl]
+                : data.image
+                ? [data.image]
+                : [];
+
             postsList.push({
               ...data,
+              images: docImages,
+              gallery: docImages,
               id: docId,
               likes: likesCount,
               createdAt,
               updatedAt,
-            } as PromptPost);
+            } as unknown as PromptPost);
           });
           this.postsCache = sortPostsByCreatedAtDesc(postsList);
           this.saveLocalCache();
@@ -730,8 +743,19 @@ class PromptStore {
       }
     }
 
+    const finalImages: string[] =
+      postData.images && Array.isArray(postData.images) && postData.images.length > 0
+        ? postData.images
+        : (postData as any).gallery && Array.isArray((postData as any).gallery) && (postData as any).gallery.length > 0
+        ? (postData as any).gallery
+        : postData.imageUrl
+        ? [postData.imageUrl]
+        : [];
+
     const newPost: PromptPost = {
       ...postData,
+      images: finalImages,
+      gallery: finalImages,
       featured: Boolean(postData.featured),
       trending: Boolean(postData.trending),
       id,
@@ -814,9 +838,30 @@ class PromptStore {
     // Strip out fields that MUST NOT be overwritten or modified during edit
     const { createdAt: _ignoreCreatedAt, id: _ignoreId, views: _ignoreViews, copies: _ignoreCopies, ...cleanUpdates } = updates;
 
+    // Synchronize images and gallery arrays strictly
+    const finalImages: string[] =
+      cleanUpdates.images && Array.isArray(cleanUpdates.images) && cleanUpdates.images.length > 0
+        ? cleanUpdates.images
+        : (cleanUpdates as any).gallery && Array.isArray((cleanUpdates as any).gallery) && (cleanUpdates as any).gallery.length > 0
+        ? (cleanUpdates as any).gallery
+        : cleanUpdates.imageUrl
+        ? [cleanUpdates.imageUrl]
+        : existingPost.images && Array.isArray(existingPost.images) && existingPost.images.length > 0
+        ? existingPost.images
+        : (existingPost as any).gallery && Array.isArray((existingPost as any).gallery) && (existingPost as any).gallery.length > 0
+        ? (existingPost as any).gallery
+        : existingPost.imageUrl
+        ? [existingPost.imageUrl]
+        : [];
+
+    cleanUpdates.images = finalImages;
+    (cleanUpdates as any).gallery = finalImages;
+
     const updatedPost: PromptPost = {
       ...existingPost,
       ...cleanUpdates,
+      images: finalImages,
+      gallery: finalImages,
       id: existingPost.id, // Strictly preserve original ID
       views: existingPost.views ?? 0, // Keep analytics unchanged
       copies: existingPost.copies ?? 0, // Keep analytics unchanged
@@ -850,8 +895,10 @@ class PromptStore {
         }
         updateDataForFirestore.imageUrl = finalImg;
       }
-      if (cleanUpdates.images !== undefined) updateDataForFirestore.images = cleanUpdates.images;
-      if ((cleanUpdates as any).gallery !== undefined) updateDataForFirestore.gallery = (cleanUpdates as any).gallery;
+      if (cleanUpdates.images !== undefined || (cleanUpdates as any).gallery !== undefined) {
+        updateDataForFirestore.images = finalImages;
+        updateDataForFirestore.gallery = finalImages;
+      }
       if (cleanUpdates.featured !== undefined) updateDataForFirestore.featured = cleanUpdates.featured;
       if (cleanUpdates.trending !== undefined) updateDataForFirestore.trending = cleanUpdates.trending;
       if (cleanUpdates.status !== undefined) updateDataForFirestore.status = cleanUpdates.status;

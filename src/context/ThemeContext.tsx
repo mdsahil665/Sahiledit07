@@ -21,16 +21,22 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (theme === 'dark') {
       root.classList.add('dark');
       root.classList.remove('light');
+      root.style.colorScheme = 'dark';
       const meta = document.getElementById('theme-color-meta');
-      if (meta) meta.setAttribute('content', '#09090b');
+      if (meta) meta.setAttribute('content', '#090d16');
     } else {
       root.classList.add('light');
       root.classList.remove('dark');
+      root.style.colorScheme = 'light';
       const meta = document.getElementById('theme-color-meta');
-      if (meta) meta.setAttribute('content', '#ffffff');
+      if (meta) meta.setAttribute('content', '#f8fafc');
     }
-    localStorage.setItem('sahil-edits-theme', theme);
-    localStorage.setItem('sahil_edits_theme', theme);
+    try {
+      localStorage.setItem('sahil-edits-theme', theme);
+      localStorage.setItem('sahil_edits_theme', theme);
+    } catch {
+      // ignore storage write error
+    }
   }, [theme]);
 
   const toggleTheme = () => {

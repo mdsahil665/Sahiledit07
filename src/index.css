@@ -31,6 +31,5 @@ html.light #root {
 
 body {
   overflow-x: hidden;
-  transition: background-color 0.2s ease, color 0.2s ease;
 }
 

@@ -417,16 +417,16 @@ function AppContent() {
     promptStore.incrementCopies(post.id);
   }, []);
 
-  const handleSavePost = (
+  const handleSavePost = async (
     postData: Omit<PromptPost, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'copies'>,
     existingId?: string
   ) => {
     const targetId = existingId || (typeof editingPostModal === 'object' && editingPostModal ? editingPostModal.id : null);
     if (targetId) {
-      promptStore.updatePost(targetId, postData);
+      await promptStore.updatePost(targetId, postData);
       showToast('✓ Prompt Updated', 'Changes saved successfully');
     } else {
-      promptStore.addPost(postData);
+      await promptStore.addPost(postData);
       showToast('✓ Prompt Published', 'New AI prompt is live at the top of your feed');
     }
     setEditingPostModal(null);
@@ -574,7 +574,7 @@ function AppContent() {
   }
 
   return (
-    <div className="relative min-h-screen flex flex-col justify-between bg-[#F8FAFC] dark:bg-[#090d16] bg-gradient-to-b from-[#EEF2FF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#090d16] dark:via-[#0f172a] dark:to-[#090d16] text-slate-800 dark:text-slate-100 transition-colors duration-300 font-sans selection:bg-purple-500/20 selection:text-purple-600 overflow-x-hidden">
+    <div className="relative min-h-screen flex flex-col justify-between bg-[#F8FAFC] dark:bg-[#090d16] bg-gradient-to-b from-[#EEF2FF] via-[#F8FAFC] to-[#F1F5F9] dark:from-[#090d16] dark:via-[#0f172a] dark:to-[#090d16] text-slate-800 dark:text-slate-100 font-sans selection:bg-purple-500/20 selection:text-purple-600 overflow-x-hidden">
       {/* SEO Dynamic Metadata & JSON-LD Manager */}
       <SEOHelper
         activePrompt={activePromptModal}

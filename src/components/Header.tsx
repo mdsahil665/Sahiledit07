@@ -175,7 +175,7 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
 
-            {/* Smile / Profile Icon Button */}
+            {/* User Profile / Account Icon Button */}
             <button
               type="button"
               onClick={() => {
@@ -187,12 +187,20 @@ export const Header: React.FC<HeaderProps> = ({
               }}
               aria-label="User Account"
               title={currentUser ? (currentUser.displayName || currentUser.email || 'My Account') : 'Sign In'}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-blue-50 dark:bg-slate-800 border border-blue-100 dark:border-slate-700/80 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-slate-700 flex items-center justify-center transition-all duration-200 shadow-sm active:scale-95 cursor-pointer"
+              className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white border border-blue-100 dark:border-slate-700/80 hover:scale-105 flex items-center justify-center transition-all duration-200 shadow-sm active:scale-95 cursor-pointer overflow-visible shrink-0"
             >
               {currentUser?.photoURL ? (
                 <img src={currentUser.photoURL} alt="User Avatar" className="w-full h-full object-cover rounded-full" />
+              ) : currentUser ? (
+                <span className="font-extrabold text-xs sm:text-sm text-white">
+                  {(currentUser.displayName || currentUser.email || 'U').charAt(0).toUpperCase()}
+                </span>
               ) : (
-                <Smile className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                <UserIcon className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-white" />
+              )}
+
+              {currentUser && (
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900 shadow-sm" />
               )}
             </button>
 
