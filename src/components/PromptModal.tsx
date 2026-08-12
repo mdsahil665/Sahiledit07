@@ -422,8 +422,29 @@ export const PromptModal: React.FC<PromptModalProps> = ({
     }, 2500);
   };
 
-  const postShareUrl = `${window.location.origin}?prompt=${post.id}`;
+  const postShareUrl = `${window.location.origin}${window.location.pathname}?prompt=${post.id}`;
   const shareTitle = encodeURIComponent(`Check out this AI Prompt: ${post.title} on Sahil Edits`);
+
+  // ESC key to close modal & lock body overflow for ultra smooth modal interaction
+  useEffect(() => {
+    if (!post) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [post, onClose]);
 
   const shareLinks = {
     whatsapp: `https://api.whatsapp.com/send?text=${shareTitle}%20${encodeURIComponent(postShareUrl)}`,

@@ -5,6 +5,8 @@ import { useToast } from './Toast';
 import { useLogo } from '../context/LogoContext';
 import { Footer } from './Footer';
 import { CustomPage } from '../types';
+import { LoginModal } from './LoginModal';
+import { RazorpayCheckoutModal } from './RazorpayCheckoutModal';
 import {
   Crown,
   Check,
@@ -18,6 +20,10 @@ import {
   Lock,
   User,
   CheckCircle2,
+  AlertTriangle,
+  Loader2,
+  XCircle,
+  Clock,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -26,15 +32,29 @@ interface PremiumPageProps {
   onOpenPageModal?: (page: CustomPage) => void;
 }
 
+type PaymentStatusState = 'IDLE' | 'STARTED' | 'PENDING' | 'VERIFIED' | 'FAILED' | 'CANCELLED';
+
 export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageModal }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
   const { currentUser, isPremium } = useAuth();
   const { showToast } = useToast();
   const { logoUrl } = useLogo();
   const settings = promptStore.getPremiumSettings();
-  const webSettings = promptStore.getWebsiteSettings();
 
-  const handlePurchaseClick = () => {
+  const [paymentState, setPaymentState] = useState<PaymentStatusState>('IDLE');
+  const [paymentMessage, setPaymentMessage] = useState<string>('');
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [orderData, setOrderData] = useState<{
+    orderId: string;
+    key: string;
+    amount: number;
+    currency: string;
+    mode: string;
+  } | null>(null);
+
+  const handlePurchaseClick = async () => {
     if (isPremium) {
       showToast('Premium Active', 'You already have Lifetime Premium access!', 'success');
       return;
@@ -43,17 +63,114 @@ export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageMod
     if (!currentUser) {
       showToast(
         'Sign In Required',
-        "You'll sign in first so your Premium stays with you on every device.",
+        "Please sign in first so your Premium access stays linked to your account.",
         'info'
       );
+      setShowLoginModal(true);
       return;
     }
 
-    showToast(
-      'Premium Purchase',
-      'Premium purchase will be available soon.',
-      'info'
-    );
+    // Step 1: Set PAYMENT STARTED state
+    setPaymentState('STARTED');
+    setPaymentMessage('Payment Processing... Initializing gateway order.');
+    setIsCreatingOrder(true);
+
+    try {
+      // Step 2: Request backend to create Razorpay Order
+      const res = await fetch('/api/payment/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.uid,
+          userEmail: currentUser.email,
+          amount: 9900, // ₹99 in paise
+          currency: 'INR',
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to initialize payment gateway.');
+      }
+
+      setOrderData({
+        orderId: data.orderId,
+        key: data.key,
+        amount: data.amount,
+        currency: data.currency,
+        mode: data.mode,
+      });
+
+      // Open Razorpay Checkout Modal (DOES NOT GRANT PREMIUM!)
+      setIsCheckoutModalOpen(true);
+    } catch (err: any) {
+      console.error('Failed to create order:', err);
+      setPaymentState('FAILED');
+      setPaymentMessage('Payment Failed. Failed to establish connection with payment gateway.');
+      showToast('Payment Error', err.message || 'Payment initialization failed.', 'error');
+    } finally {
+      setIsCreatingOrder(false);
+    }
+  };
+
+  // Step 3: Handle Payment Submission & Verification
+  const handlePaymentSuccess = async (result: {
+    razorpay_payment_id: string;
+    razorpay_order_id: string;
+    razorpay_signature: string;
+  }) => {
+    setIsCheckoutModalOpen(false);
+    setPaymentState('PENDING');
+    setPaymentMessage('Payment Pending — Verifying signature with server...');
+
+    try {
+      const verifyRes = await fetch('/api/payment/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          razorpay_payment_id: result.razorpay_payment_id,
+          razorpay_order_id: result.razorpay_order_id,
+          razorpay_signature: result.razorpay_signature,
+          userId: currentUser?.uid,
+          userEmail: currentUser?.email,
+          amount: 99,
+        }),
+      });
+
+      const verifyData = await verifyRes.json();
+
+      if (verifyRes.ok && verifyData.success && verifyData.verified) {
+        // PAYMENT SUCCESSFULLY VERIFIED!
+        setPaymentState('VERIFIED');
+        setPaymentMessage('Payment Successful. Premium Activated!');
+        showToast('Payment Successful', 'Payment verified! Premium Activated for your account.', 'success');
+      } else {
+        // PAYMENT FAILED VERIFICATION
+        setPaymentState('FAILED');
+        setPaymentMessage('Payment Failed. Security signature verification failed. Premium was not activated.');
+        showToast('Verification Failed', verifyData.error || 'Payment signature could not be verified.', 'error');
+      }
+    } catch (err: any) {
+      console.error('Verification request error:', err);
+      setPaymentState('FAILED');
+      setPaymentMessage('Payment Failed. Unable to verify payment on server.');
+      showToast('Verification Error', 'Server verification network error.', 'error');
+    }
+  };
+
+  const handlePaymentFailure = (errorMsg: string) => {
+    setIsCheckoutModalOpen(false);
+    setPaymentState('FAILED');
+    setPaymentMessage(`Payment Failed. ${errorMsg || 'Premium was not activated.'}`);
+    showToast('Payment Failed', errorMsg || 'Payment was not completed.', 'error');
+  };
+
+  const handlePaymentCancel = () => {
+    setIsCheckoutModalOpen(false);
+    setPaymentState('CANCELLED');
+    setPaymentMessage('Payment Cancelled. No Premium access was granted.');
+    showToast('Payment Cancelled', 'No Premium access was granted.', 'info');
   };
 
   return (
@@ -102,7 +219,7 @@ export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageMod
       </div>
 
       {/* Main Content Area */}
-      <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-8 sm:py-12 space-y-10 flex-1 shrink-0">
+      <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-8 sm:py-12 space-y-8 flex-1 shrink-0">
         {/* Hero Section */}
         <div className="text-center space-y-4 max-w-2xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-500/20 via-purple-500/20 to-blue-500/20 border border-amber-500/30 text-amber-300 text-xs font-bold uppercase tracking-widest shadow-lg shadow-amber-500/10">
@@ -122,10 +239,84 @@ export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageMod
           {isPremium && (
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>Premium Active — You enjoy full lifetime ad-free access!</span>
+              <span>Payment Successful · Premium Active — Full lifetime ad-free access!</span>
             </div>
           )}
         </div>
+
+        {/* PAYMENT STATE BANNER */}
+        {paymentState !== 'IDLE' && (
+          <div className="max-w-2xl mx-auto">
+            {paymentState === 'STARTED' && (
+              <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-300 text-xs font-semibold flex items-center justify-between gap-3 shadow-lg">
+                <div className="flex items-center gap-2.5">
+                  <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                  <span>Payment Processing... Opening Razorpay Gateway.</span>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-blue-500/20 text-[10px] font-bold uppercase tracking-wider text-blue-300">
+                  Processing
+                </span>
+              </div>
+            )}
+
+            {paymentState === 'PENDING' && (
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center justify-between gap-3 shadow-lg">
+                <div className="flex items-center gap-2.5">
+                  <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
+                  <span>Payment Pending — Premium will activate only after successful server verification.</span>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                  Pending
+                </span>
+              </div>
+            )}
+
+            {paymentState === 'VERIFIED' && (
+              <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 text-xs font-bold flex items-center justify-between gap-3 shadow-lg">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                  <div>
+                    <div className="text-sm font-extrabold text-emerald-300">Payment Successful</div>
+                    <div className="text-[11px] font-medium text-emerald-200/90">Premium Activated for {currentUser?.email}!</div>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-[10px] font-black uppercase tracking-wider text-emerald-300 border border-emerald-500/30">
+                  VERIFIED
+                </span>
+              </div>
+            )}
+
+            {paymentState === 'FAILED' && (
+              <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-xs font-bold flex items-center justify-between gap-3 shadow-lg">
+                <div className="flex items-center gap-2.5">
+                  <XCircle className="w-5 h-5 text-rose-400" />
+                  <div>
+                    <div className="text-sm font-extrabold text-rose-300">Payment Failed</div>
+                    <div className="text-[11px] font-medium text-rose-200/90">{paymentMessage || 'Premium was not activated.'}</div>
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-full bg-rose-500/20 text-[10px] font-black uppercase tracking-wider text-rose-300 border border-rose-500/30">
+                  FAILED
+                </span>
+              </div>
+            )}
+
+            {paymentState === 'CANCELLED' && (
+              <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 text-slate-300 text-xs font-semibold flex items-center justify-between gap-3 shadow-lg">
+                <div className="flex items-center gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-400" />
+                  <div>
+                    <div className="text-xs font-bold text-slate-200">Payment Cancelled</div>
+                    <div className="text-[11px] text-slate-400">No Premium access was granted. You remain on the Free Plan.</div>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-slate-700 text-[10px] font-bold uppercase tracking-wider text-slate-300">
+                  Cancelled
+                </span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Pricing Plan Card */}
         <div className="relative rounded-3xl border-2 border-amber-500/40 bg-gradient-to-b from-slate-900/90 via-slate-900/95 to-slate-950/90 p-6 sm:p-10 shadow-2xl shadow-purple-950/50 backdrop-blur-xl overflow-hidden">
@@ -161,27 +352,38 @@ export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageMod
               <button
                 type="button"
                 onClick={handlePurchaseClick}
-                className={`w-full py-4 px-6 rounded-2xl font-black text-sm sm:text-base transition-all duration-300 shadow-xl flex items-center justify-center gap-2 cursor-pointer ${
+                disabled={isCreatingOrder}
+                className={`w-full py-4 px-6 rounded-2xl font-black text-sm sm:text-base transition-all duration-300 shadow-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
                   isPremium
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
                     : 'bg-gradient-to-r from-amber-500 via-purple-600 to-blue-600 hover:from-amber-400 hover:via-purple-500 hover:to-blue-500 text-white shadow-purple-600/30 hover:scale-[1.01] active:scale-[0.99]'
                 }`}
               >
-                <Crown className="w-5 h-5 text-amber-200" />
-                <span>{isPremium ? 'Premium Active (Lifetime Access)' : settings.buttonText || 'Get Lifetime Access — ₹99'}</span>
+                {isCreatingOrder ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-amber-200" />
+                ) : (
+                  <Crown className="w-5 h-5 text-amber-200" />
+                )}
+                <span>
+                  {isPremium
+                    ? 'Premium Active (Lifetime Access)'
+                    : isCreatingOrder
+                    ? 'Initializing Payment...'
+                    : settings.buttonText || 'Get Lifetime Access — ₹99'}
+                </span>
               </button>
 
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3 text-center text-slate-400 text-[11px]">
-                <span>🔒 Secure checkout</span>
+                <span>🔒 Razorpay Secure Checkout</span>
                 <span className="hidden sm:inline">·</span>
-                <span>Instant activation</span>
+                <span>Server Verified Activation</span>
                 <span className="hidden sm:inline">·</span>
                 <span>Full refund if it's not for you</span>
               </div>
 
               {!currentUser && (
                 <p className="text-center text-amber-300/90 text-xs font-medium pt-1">
-                  💡 You'll sign in first so your Premium stays with you on every device.
+                  💡 You'll sign in first so your Premium stays linked to your account on every device.
                 </p>
               )}
             </div>
@@ -190,7 +392,7 @@ export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageMod
             <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs leading-relaxed font-medium flex items-start gap-3">
               <span className="text-base shrink-0">💡</span>
               <span>
-                Most prompt tools bill you every month. This is <strong>one single payment</strong> — then it's yours for good.
+                Most prompt tools bill you every month. This is <strong>one single verified payment</strong> — then it's yours for good.
               </span>
             </div>
 
@@ -270,6 +472,28 @@ export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageMod
           }}
         />
       </div>
+
+      {/* Razorpay Checkout Gateway Modal */}
+      <RazorpayCheckoutModal
+        isOpen={isCheckoutModalOpen}
+        orderData={orderData}
+        currentUser={currentUser}
+        onSuccess={handlePaymentSuccess}
+        onFailure={handlePaymentFailure}
+        onCancel={handlePaymentCancel}
+      />
+
+      {/* Login Modal trigger if unauthenticated user attempts purchase */}
+      {showLoginModal && (
+        <LoginModal
+          isOpen={showLoginModal}
+          onClose={() => setShowLoginModal(false)}
+          onSuccess={() => {
+            setShowLoginModal(false);
+            showToast('Signed In', 'You are signed in! Click Purchase to continue.', 'success');
+          }}
+        />
+      )}
     </motion.div>
   );
 };

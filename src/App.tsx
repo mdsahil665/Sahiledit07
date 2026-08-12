@@ -308,7 +308,7 @@ function AppContent() {
     window.history.replaceState(null, '', cleanUrl || '/');
 
     setTimeout(() => {
-      window.scrollTo({ top: savedScrollPosition.current, behavior: 'instant' });
+      window.scrollTo({ top: savedScrollPosition.current, behavior: 'auto' });
     }, 30);
   }, []);
 

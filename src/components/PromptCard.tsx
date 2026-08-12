@@ -85,10 +85,11 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    const shareUrl = `${window.location.origin}${window.location.pathname}?prompt=${post.id}`;
     const shareData = {
       title: post.title,
       text: post.shortDescription || post.title,
-      url: window.location.href,
+      url: shareUrl,
     };
 
     if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
@@ -98,7 +99,7 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
         // user canceled share
       }
     } else {
-      navigator.clipboard.writeText(window.location.href);
+      navigator.clipboard.writeText(shareUrl);
       setShared(true);
       setTimeout(() => setShared(false), 2000);
     }

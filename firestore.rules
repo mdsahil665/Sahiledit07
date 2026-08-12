@@ -102,8 +102,14 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isAdmin();
-      allow create, update: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) || isAdmin();
+      allow update: if isAdmin() || (isOwner(userId) && !incoming().diff(existing()).affectedKeys().hasAny(['isPremium', 'role']));
       allow delete: if isAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create, update, delete: if isAdmin();
     }
   }
 }
