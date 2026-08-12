@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PromptPost, Category, DEFAULT_POST_CARD_CONFIG, PostCardConfig } from '../types';
-import { Eye, Copy, Check, Share2, Sparkles, Heart, ArrowUpRight } from 'lucide-react';
+import { Eye, Copy, Check, Share2, Sparkles, Heart, ArrowUpRight, Images } from 'lucide-react';
 import { promptStore } from '../services/promptStore';
 
 interface PromptCardProps {
@@ -120,6 +120,13 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
     setLikeCount(result.count);
   };
 
+  const coverImageUrl = (post.images && Array.isArray(post.images) && post.images.length > 0)
+    ? post.images[0]
+    : post.imageUrl;
+  const totalImages = (post.images && Array.isArray(post.images) && post.images.length > 1)
+    ? post.images.length
+    : 1;
+
   return (
     <article
       onClick={() => onOpenModal(post)}
@@ -138,7 +145,7 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
         <div className="absolute inset-0 w-full h-full bg-slate-950 overflow-hidden">
           {/* Ambient blurred backdrop fill */}
           <img
-            src={post.imageUrl}
+            src={coverImageUrl}
             alt=""
             aria-hidden="true"
             className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-35 scale-125 select-none pointer-events-none"
@@ -146,7 +153,7 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
 
           {/* Main Subject Image - Always Sharp and Bright */}
           <img
-            src={post.imageUrl}
+            src={coverImageUrl}
             alt={post.title}
             loading="lazy"
             decoding="async"
@@ -165,6 +172,16 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
 
           {/* Subtle bottom gradient vignette behind glass for depth */}
           <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-slate-950/60 via-slate-950/20 to-transparent pointer-events-none z-10" />
+
+          {/* Multi-Image Gallery Badge Indicator */}
+          {totalImages > 1 && (
+            <div className="absolute bottom-24 right-3.5 z-20 pointer-events-none">
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-950/80 backdrop-blur-md text-[11px] font-bold text-white border border-white/20 shadow-lg">
+                <Images className="w-3 h-3 text-blue-400" />
+                <span>1 / {totalImages}</span>
+              </span>
+            </div>
+          )}
 
           {/* Top Badges / Indicators */}
           <div className="absolute top-3.5 left-3.5 right-3.5 flex items-center justify-between gap-2 pointer-events-none z-20">

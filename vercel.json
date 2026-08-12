@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/payment/create-order",
+      "destination": "/api/payment/create-order"
+    },
+    {
+      "source": "/api/payment/verify-payment",
+      "destination": "/api/payment/verify-payment"
+    },
+    {
+      "source": "/api/payment/test-connection",
+      "destination": "/api/payment/test-connection"
+    },
+    {
+      "source": "/api/health",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

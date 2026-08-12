@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { PromptPost, Category } from '../types';
+import { CustomPage, PromptPost, Category } from '../types';
 import { CategoryIcon } from './CategoryIcon';
 import {
   Copy,
@@ -29,6 +29,7 @@ import {
   Tag,
   Zap,
   Link,
+  Images,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from './Toast';
@@ -42,7 +43,7 @@ import {
   RatingStats,
   DEFAULT_RATING_STATS,
 } from '../services/ratingService';
-import { promptStore } from '../services/promptStore';
+import { promptStore, getPostCreatedAtMillis } from '../services/promptStore';
 import { AdBanner } from './AdBanner';
 import { PromptCard } from './PromptCard';
 import { Footer } from './Footer';
@@ -54,6 +55,7 @@ interface PromptModalProps {
   onClose: () => void;
   onSelectPost: (post: PromptPost) => void;
   onCopyPrompt: (post: PromptPost) => void;
+  onOpenPage?: (page: CustomPage) => void;
 }
 
 const FacebookIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (
@@ -99,6 +101,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
   onClose,
   onSelectPost,
   onCopyPrompt,
+  onOpenPage,
 }) => {
   const [copied, setCopied] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
@@ -128,16 +131,16 @@ export const PromptModal: React.FC<PromptModalProps> = ({
   const [visibleRelatedCount, setVisibleRelatedCount] = useState<number>(4);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
   const modalScrollRef = useRef<HTMLDivElement | null>(null);
+  const touchStartXRef = useRef<number | null>(null);
 
   const galleryImages: string[] = useMemo(() => {
     if (!post) return [];
+    // If post has explicit images array, use it directly to preserve admin order
+    if (post.images && Array.isArray(post.images) && post.images.length > 0) {
+      return post.images.filter((img): img is string => typeof img === 'string' && img.trim().length > 0);
+    }
     const list: string[] = [];
     if (post.imageUrl) list.push(post.imageUrl);
-    if ((post as any).images && Array.isArray((post as any).images)) {
-      (post as any).images.forEach((img: string) => {
-        if (img && typeof img === 'string' && !list.includes(img)) list.push(img);
-      });
-    }
     if ((post as any).gallery && Array.isArray((post as any).gallery)) {
       (post as any).gallery.forEach((img: string) => {
         if (img && typeof img === 'string' && !list.includes(img)) list.push(img);
@@ -145,6 +148,10 @@ export const PromptModal: React.FC<PromptModalProps> = ({
     }
     return list.length > 0 ? list : [post.imageUrl];
   }, [post]);
+
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [post?.id]);
 
   const { showToast } = useToast();
   const timerSettings = promptStore.getTimerSettings();
@@ -314,21 +321,22 @@ export const PromptModal: React.FC<PromptModalProps> = ({
   };
 
   const handleDownloadImage = async () => {
-    if (!post?.imageUrl) return;
+    const targetUrl = galleryImages[activeImageIndex] || post?.imageUrl;
+    if (!targetUrl) return;
     try {
-      const response = await fetch(post.imageUrl);
+      const response = await fetch(targetUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${post.title.replace(/[^a-z0-9]/gi, '_')}.jpg`;
+      a.download = `${post?.title ? post.title.replace(/[^a-z0-9]/gi, '_') : 'image'}_${activeImageIndex + 1}.jpg`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
       showToast('✓ Image Downloaded', 'Saved high-quality image to your downloads.');
     } catch (err) {
-      window.open(post.imageUrl, '_blank');
+      window.open(targetUrl, '_blank');
     }
   };
 
@@ -370,15 +378,26 @@ export const PromptModal: React.FC<PromptModalProps> = ({
     }
   }, [post?.id, timerSettings.enabled, timerSettings.defaultSeconds]);
 
+  // ESC key to close modal & lock body overflow for ultra smooth modal interaction
   useEffect(() => {
+    if (!post) return;
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
       }
     };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [post, onClose]);
 
   if (!post) return null;
 
@@ -425,33 +444,12 @@ export const PromptModal: React.FC<PromptModalProps> = ({
   const postShareUrl = `${window.location.origin}${window.location.pathname}?prompt=${post.id}`;
   const shareTitle = encodeURIComponent(`Check out this AI Prompt: ${post.title} on Sahil Edits`);
 
-  // ESC key to close modal & lock body overflow for ultra smooth modal interaction
-  useEffect(() => {
-    if (!post) return;
-
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [post, onClose]);
-
   const shareLinks = {
     whatsapp: `https://api.whatsapp.com/send?text=${shareTitle}%20${encodeURIComponent(postShareUrl)}`,
     telegram: `https://t.me/share/url?url=${encodeURIComponent(postShareUrl)}&text=${shareTitle}`,
     facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(postShareUrl)}`,
     twitter: `https://twitter.com/intent/tweet?text=${shareTitle}&url=${encodeURIComponent(postShareUrl)}`,
-    pinterest: `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(postShareUrl)}&media=${encodeURIComponent(post.imageUrl)}&description=${shareTitle}`,
+    pinterest: `https://pinterest.com/pin/create/button/?url=${encodeURIComponent(postShareUrl)}&media=${encodeURIComponent(galleryImages[0] || post.imageUrl || '')}&description=${shareTitle}`,
     threads: `https://www.threads.net/intent/post?text=${shareTitle}%20${encodeURIComponent(postShareUrl)}`,
   };
 
@@ -462,11 +460,14 @@ export const PromptModal: React.FC<PromptModalProps> = ({
     setTimeout(() => setShareCopied(false), 2000);
   };
 
-  const formattedDate = new Date(post.createdAt).toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const createdMillis = getPostCreatedAtMillis(post);
+  const formattedDate = createdMillis > 0
+    ? new Date(createdMillis).toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : 'Recently';
 
   const modelOrToolName =
     post.model ||
@@ -522,7 +523,25 @@ export const PromptModal: React.FC<PromptModalProps> = ({
 
             {/* 1. FULL POST IMAGE / GALLERY */}
             <div className="space-y-3">
-              <div className="relative w-full rounded-2xl sm:rounded-3xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-950 shadow-xl flex flex-col items-center justify-center p-2 sm:p-4 group">
+              <div
+                onTouchStart={(e) => {
+                  touchStartXRef.current = e.touches[0].clientX;
+                }}
+                onTouchEnd={(e) => {
+                  if (touchStartXRef.current === null) return;
+                  const touchEndX = e.changedTouches[0].clientX;
+                  const diff = touchStartXRef.current - touchEndX;
+                  if (diff > 40) {
+                    // Swipe Left -> Next Image
+                    setActiveImageIndex((prev) => (prev < galleryImages.length - 1 ? prev + 1 : 0));
+                  } else if (diff < -40) {
+                    // Swipe Right -> Prev Image
+                    setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : galleryImages.length - 1));
+                  }
+                  touchStartXRef.current = null;
+                }}
+                className="relative w-full rounded-2xl sm:rounded-3xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-950 shadow-xl flex flex-col items-center justify-center p-2 sm:p-4 group touch-pan-y select-none"
+              >
                 {/* Dynamic Ambient Background generated from current post image */}
                 <div
                   className="absolute inset-0 -m-6 bg-cover bg-center scale-125 blur-3xl opacity-65 dark:opacity-55 pointer-events-none transition-all duration-700 ease-out"
@@ -537,10 +556,22 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                 {/* Foreground Sharp Image */}
                 <img
                   src={galleryImages[activeImageIndex] || post.imageUrl}
-                  alt={post.title}
+                  alt={`${post.title} - Image ${activeImageIndex + 1}`}
+                  loading="lazy"
+                  decoding="async"
                   className="relative z-10 w-full h-auto max-h-[75vh] sm:max-h-[600px] object-contain rounded-xl sm:rounded-2xl transition-transform duration-300 group-hover:scale-[1.005] shadow-2xl"
                   style={{ display: 'block', maxWidth: '100%' }}
                 />
+
+                {/* Top-Left Counter Badge if multiple images exist */}
+                {galleryImages.length > 1 && (
+                  <div className="absolute top-3 left-3 sm:top-5 sm:left-5 z-20 pointer-events-none">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-zinc-950/85 backdrop-blur-md text-white text-xs font-bold border border-white/15 shadow-xl">
+                      <Images className="w-3.5 h-3.5 text-blue-400" />
+                      <span>{activeImageIndex + 1} / {galleryImages.length}</span>
+                    </span>
+                  </div>
+                )}
 
                 {/* Navigation Arrows for Gallery */}
                 {galleryImages.length > 1 && (
@@ -548,7 +579,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : galleryImages.length - 1))}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-zinc-950/70 hover:bg-zinc-950/90 text-white border border-white/20 transition-all cursor-pointer shadow-lg active:scale-95"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2.5 rounded-full bg-zinc-950/80 hover:bg-zinc-950 text-white border border-white/20 transition-all cursor-pointer shadow-xl active:scale-90"
                       aria-label="Previous image"
                     >
                       <ChevronLeft className="w-5 h-5" />
@@ -556,7 +587,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setActiveImageIndex((prev) => (prev < galleryImages.length - 1 ? prev + 1 : 0))}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-zinc-950/70 hover:bg-zinc-950/90 text-white border border-white/20 transition-all cursor-pointer shadow-lg active:scale-95"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2.5 rounded-full bg-zinc-950/80 hover:bg-zinc-950 text-white border border-white/20 transition-all cursor-pointer shadow-xl active:scale-90"
                       aria-label="Next image"
                     >
                       <ChevronRight className="w-5 h-5" />
@@ -574,7 +605,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                     type="button"
                     onClick={handleDownloadImage}
                     className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
-                    title="Download image"
+                    title="Download current active image"
                   >
                     <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span>Download</span>
@@ -584,19 +615,22 @@ export const PromptModal: React.FC<PromptModalProps> = ({
 
               {/* Thumbnails Row if multiple images exist */}
               {galleryImages.length > 1 && (
-                <div className="flex items-center gap-2.5 overflow-x-auto pb-1 pt-1 px-1">
+                <div className="flex items-center gap-2.5 overflow-x-auto pb-1.5 pt-1 px-1 scrollbar-none">
                   {galleryImages.map((imgUrl, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => setActiveImageIndex(idx)}
-                      className={`relative shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                      className={`relative shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 transition-all cursor-pointer ${
                         activeImageIndex === idx
-                          ? 'border-blue-600 dark:border-blue-500 ring-2 ring-blue-500/30 scale-105'
+                          ? 'border-blue-500 dark:border-blue-400 ring-2 ring-blue-500/40 scale-105'
                           : 'border-zinc-200 dark:border-zinc-800 opacity-60 hover:opacity-100'
                       }`}
                     >
                       <img src={imgUrl} alt={`${post.title} thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
+                      <span className="absolute bottom-1 right-1 px-1 py-0.2 rounded bg-black/75 text-white font-mono text-[9px]">
+                        #{idx + 1}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -1029,7 +1063,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
 
             {/* SECTION 8: FOOTER */}
             <div className="pt-6">
-              <Footer />
+              <Footer onOpenPage={onOpenPage || (() => {})} />
             </div>
 
           </div>

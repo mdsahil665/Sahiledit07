@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PromptPost, Category, PostStatus } from '../../types';
-import { X, Upload, Link as LinkIcon, Sparkles, Image as ImageIcon, Eye, Save, Calendar, Clock, Lock, Loader2, FileText, Sliders, CheckCircle2 } from 'lucide-react';
+import { X, Upload, Link as LinkIcon, Sparkles, Image as ImageIcon, Eye, Save, Calendar, Clock, Lock, Loader2, FileText, Sliders, CheckCircle2, ArrowLeft, ArrowRight, Trash2, Plus, Images } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../Toast';
 import { promptStore } from '../../services/promptStore';
@@ -26,6 +26,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
 }) => {
   const [imageMode, setImageMode] = useState<'url' | 'upload'>('url');
   const [imageUrl, setImageUrl] = useState('');
+  const [galleryImages, setGalleryImages] = useState<string[]>([]);
+  const [newUrlInput, setNewUrlInput] = useState('');
   const [title, setTitle] = useState('');
   const [shortDescription, setShortDescription] = useState('');
   const [fullPrompt, setFullPrompt] = useState('');
@@ -45,10 +47,16 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
   const [isUploading, setIsUploading] = useState(false);
 
   const { showToast } = useToast();
+  const featureControls = promptStore.getFeatureControls();
+  const isMultiGalleryEnabled = featureControls.multiImageGallery !== false;
 
   useEffect(() => {
     if (post) {
-      setImageUrl(post.imageUrl || '');
+      const existingImgs = post.images && Array.isArray(post.images) && post.images.length > 0
+        ? [...post.images]
+        : (post.imageUrl ? [post.imageUrl] : []);
+      setGalleryImages(existingImgs);
+      setImageUrl(existingImgs[0] || post.imageUrl || '');
       setTitle(post.title || '');
       setShortDescription(post.shortDescription || '');
       setFullPrompt(post.fullPrompt || '');
@@ -70,7 +78,9 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       }
     } else {
       // Default reset
-      setImageUrl('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80');
+      const defaultImg = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
+      setGalleryImages([defaultImg]);
+      setImageUrl(defaultImg);
       setTitle('');
       setShortDescription('');
       setFullPrompt('');
@@ -85,6 +95,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       setTimerEnabled(true);
       setTimerSeconds(5);
     }
+    setNewUrlInput('');
   }, [post, categories, isOpen]);
 
   if (!isOpen) return null;
@@ -101,6 +112,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       setIsUploading(false);
       if (res.success && res.url) {
         setImageUrl(res.url);
+        setGalleryImages(prev => prev.length === 0 ? [res.url] : [res.url, ...prev.slice(1)]);
         showToast('Image Uploaded!', 'Secure Cloudinary image URL generated and saved.', 'success');
       } else {
         showToast('Cloudinary Error', res.error || 'Upload failed. Falling back to compressed local preview', 'error');
@@ -108,6 +120,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
         const compressed = await compressImageFile(file);
         setIsUploading(false);
         setImageUrl(compressed);
+        setGalleryImages(prev => prev.length === 0 ? [compressed] : [compressed, ...prev.slice(1)]);
       }
     } else {
       // Data URI compressed fallback
@@ -115,8 +128,73 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       const compressed = await compressImageFile(file);
       setIsUploading(false);
       setImageUrl(compressed);
+      setGalleryImages(prev => prev.length === 0 ? [compressed] : [compressed, ...prev.slice(1)]);
       showToast('Local Preview Loaded', 'Tip: Add Cloudinary keys in Settings for automatic cloud storage', 'info');
     }
+  };
+
+  const handleMultipleFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    showToast('Uploading Images', `Processing ${files.length} image file(s)...`, 'info');
+
+    const uploadedUrls: string[] = [];
+    const cldSettings = promptStore.getCloudinarySettings();
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (cldSettings.cloudName && cldSettings.uploadPreset) {
+        const res = await promptStore.uploadToCloudinary(file);
+        if (res.success && res.url) {
+          uploadedUrls.push(res.url);
+        } else {
+          const compressed = await compressImageFile(file);
+          uploadedUrls.push(compressed);
+        }
+      } else {
+        const compressed = await compressImageFile(file);
+        uploadedUrls.push(compressed);
+      }
+    }
+
+    setIsUploading(false);
+    if (uploadedUrls.length > 0) {
+      setGalleryImages(prev => [...prev, ...uploadedUrls]);
+      if (!imageUrl) setImageUrl(uploadedUrls[0]);
+      showToast('Images Uploaded!', `Added ${uploadedUrls.length} image(s) to post gallery.`, 'success');
+    }
+  };
+
+  const handleAddUrlToGallery = () => {
+    if (!newUrlInput.trim()) return;
+    const url = newUrlInput.trim();
+    setGalleryImages(prev => [...prev, url]);
+    if (!imageUrl) setImageUrl(url);
+    setNewUrlInput('');
+    showToast('Image Added', 'Image URL attached to post gallery.', 'success');
+  };
+
+  const handleMoveImage = (index: number, direction: 'left' | 'right') => {
+    if (direction === 'left' && index === 0) return;
+    if (direction === 'right' && index === galleryImages.length - 1) return;
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    const updated = [...galleryImages];
+    const temp = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = temp;
+    setGalleryImages(updated);
+  };
+
+  const handleDeleteImage = (index: number) => {
+    if (galleryImages.length <= 1) {
+      showToast('Action Blocked', 'Post gallery must contain at least one image.', 'error');
+      return;
+    }
+    const updated = galleryImages.filter((_, i) => i !== index);
+    setGalleryImages(updated);
+    showToast('Image Removed', 'Removed image from post gallery.', 'info');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -136,10 +214,22 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       .map((t) => t.trim())
       .filter(Boolean);
 
-    let finalImageUrl = imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
-    if (finalImageUrl.startsWith('data:image/')) {
-      finalImageUrl = await compressDataUrl(finalImageUrl);
+    let finalGallery = galleryImages.filter(Boolean);
+    if (finalGallery.length === 0) {
+      finalGallery = [imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80'];
     }
+
+    // Compress data URI images if present
+    const processedGallery: string[] = [];
+    for (const img of finalGallery) {
+      if (img.startsWith('data:image/')) {
+        processedGallery.push(await compressDataUrl(img));
+      } else {
+        processedGallery.push(img);
+      }
+    }
+
+    const coverUrl = processedGallery[0] || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
 
     onSave(
       {
@@ -148,7 +238,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
         fullPrompt,
         categoryId: categoryId || categories[0]?.id || 'chatgpt',
         tags: parsedTags,
-        imageUrl: finalImageUrl,
+        imageUrl: coverUrl,
+        images: processedGallery,
         featured,
         trending,
         status,
@@ -311,14 +402,21 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                   </div>
                 </div>
 
-                {/* CARD 2: MEDIA & COVER IMAGE */}
-                <div className="p-6 rounded-3xl bg-zinc-950/60 border border-zinc-800/80 space-y-4">
+                {/* CARD 2: POST IMAGES / GALLERY */}
+                <div className="p-6 rounded-3xl bg-zinc-950/60 border border-zinc-800/80 space-y-5">
                   <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
                     <div className="flex items-center gap-2">
                       <ImageIcon className="w-4 h-4 text-purple-400" />
-                      <h4 className="text-xs font-black uppercase tracking-wider text-zinc-300">
-                        2. Cover Media Asset
-                      </h4>
+                      <div>
+                        <h4 className="text-xs font-black uppercase tracking-wider text-zinc-300">
+                          2. Post Images / Gallery {isMultiGalleryEnabled ? `(${galleryImages.length} Image${galleryImages.length === 1 ? '' : 's'})` : ''}
+                        </h4>
+                        <p className="text-[11px] text-zinc-400 font-normal">
+                          {isMultiGalleryEnabled
+                            ? 'The FIRST image is used as the MAIN/COVER image on home feed. Additional images are shown inside the post gallery.'
+                            : 'Set the main image for this prompt post.'}
+                        </p>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -343,31 +441,151 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                     </div>
                   </div>
 
-                  {imageMode === 'url' ? (
-                    <input
-                      type="text"
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      placeholder="https://images.unsplash.com/..."
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs font-semibold text-white focus:outline-none focus:border-purple-500"
-                    />
-                  ) : (
-                    <div className="relative border-2 border-dashed border-zinc-800 rounded-2xl p-6 text-center hover:border-purple-500/50 transition-colors">
-                      <Upload className="w-8 h-8 text-purple-400 mx-auto mb-2" />
-                      <p className="text-xs font-bold text-white">Click or drag image file to upload</p>
-                      <p className="text-[10px] text-zinc-500 mt-1">Uploads automatically to Cloudinary cloud storage</p>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileUpload}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                      />
-                    </div>
-                  )}
+                  {isMultiGalleryEnabled ? (
+                    <div className="space-y-4">
+                      {/* Add Image Inputs */}
+                      {imageMode === 'url' ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={newUrlInput}
+                            onChange={(e) => setNewUrlInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddUrlToGallery();
+                              }
+                            }}
+                            placeholder="Paste image web URL (https://...)"
+                            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs font-semibold text-white focus:outline-none focus:border-purple-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddUrlToGallery}
+                            className="px-4 py-2.5 rounded-2xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>Add Image</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative border-2 border-dashed border-zinc-800 rounded-2xl p-5 text-center hover:border-purple-500/50 transition-colors bg-zinc-900/50">
+                          {isUploading ? (
+                            <div className="flex flex-col items-center justify-center py-2 space-y-2">
+                              <Loader2 className="w-7 h-7 text-purple-400 animate-spin" />
+                              <p className="text-xs font-bold text-white">Uploading media to storage...</p>
+                            </div>
+                          ) : (
+                            <>
+                              <Upload className="w-7 h-7 text-purple-400 mx-auto mb-2" />
+                              <p className="text-xs font-bold text-white">Click or drag images to upload</p>
+                              <p className="text-[10px] text-zinc-400 mt-1">Select one or multiple images simultaneously</p>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                onChange={handleMultipleFilesUpload}
+                                className="absolute inset-0 opacity-0 cursor-pointer"
+                              />
+                            </>
+                          )}
+                        </div>
+                      )}
 
-                  {imageUrl && (
-                    <div className="relative w-32 h-24 rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900">
-                      <img src={imageUrl} alt="Cover preview" className="w-full h-full object-cover" />
+                      {/* Gallery Thumbnails List with Reordering & Deletion */}
+                      <div>
+                        <h5 className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">
+                          Attached Gallery Thumbnails ({galleryImages.length})
+                        </h5>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                          {galleryImages.map((imgUrl, idx) => (
+                            <div
+                              key={idx}
+                              className={`relative group rounded-2xl overflow-hidden border-2 bg-zinc-900 transition-all flex flex-col ${
+                                idx === 0 ? 'border-purple-500/80 ring-2 ring-purple-500/20' : 'border-zinc-800'
+                              }`}
+                            >
+                              <div className="relative aspect-video w-full overflow-hidden bg-black">
+                                <img src={imgUrl} alt={`Gallery item ${idx + 1}`} className="w-full h-full object-cover" />
+                                {idx === 0 && (
+                                  <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-purple-600 text-white font-extrabold text-[9px] uppercase tracking-wider shadow-md">
+                                    MAIN COVER
+                                  </span>
+                                )}
+                                <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white font-mono text-[10px]">
+                                  #{idx + 1}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center justify-between p-1.5 bg-zinc-950/90 border-t border-zinc-800">
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveImage(idx, 'left')}
+                                    disabled={idx === 0}
+                                    title="Move Left"
+                                    className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
+                                  >
+                                    <ArrowLeft className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMoveImage(idx, 'right')}
+                                    disabled={idx === galleryImages.length - 1}
+                                    title="Move Right"
+                                    className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
+                                  >
+                                    <ArrowRight className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteImage(idx)}
+                                  title="Delete Image"
+                                  className="p-1 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Single Image Mode Fallback when Multi-Image Gallery toggle is OFF */
+                    <div className="space-y-3">
+                      {imageMode === 'url' ? (
+                        <input
+                          type="text"
+                          value={imageUrl}
+                          onChange={(e) => {
+                            setImageUrl(e.target.value);
+                            setGalleryImages([e.target.value]);
+                          }}
+                          placeholder="https://images.unsplash.com/..."
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs font-semibold text-white focus:outline-none focus:border-purple-500"
+                        />
+                      ) : (
+                        <div className="relative border-2 border-dashed border-zinc-800 rounded-2xl p-6 text-center hover:border-purple-500/50 transition-colors">
+                          <Upload className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+                          <p className="text-xs font-bold text-white">Click or drag image file to upload</p>
+                          <p className="text-[10px] text-zinc-500 mt-1">Uploads automatically to cloud storage</p>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileUpload}
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                          />
+                        </div>
+                      )}
+
+                      {imageUrl && (
+                        <div className="relative w-32 h-24 rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900">
+                          <img src={imageUrl} alt="Cover preview" className="w-full h-full object-cover" />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

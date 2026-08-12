@@ -55,7 +55,7 @@ export const UserManagementSection: React.FC<UserManagementSectionProps> = ({ cu
             email: currentAdminEmail,
             displayName: 'Sahil',
             role: 'admin',
-            isPremium: true,
+            isPremium: false,
             isBanned: false,
             createdAt: new Date().toISOString(),
           });
@@ -73,7 +73,7 @@ export const UserManagementSection: React.FC<UserManagementSectionProps> = ({ cu
             email: currentAdminEmail,
             displayName: 'Sahil',
             role: 'admin',
-            isPremium: true,
+            isPremium: false,
             isBanned: false,
             createdAt: new Date().toISOString(),
           },

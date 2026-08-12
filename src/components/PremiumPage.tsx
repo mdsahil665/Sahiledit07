@@ -54,9 +54,55 @@ export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageMod
     mode: string;
   } | null>(null);
 
+  const safeFetchJson = async (url: string, options: RequestInit) => {
+    try {
+      const res = await fetch(url, options);
+      const contentType = res.headers.get('content-type') || '';
+
+      if (!contentType.includes('application/json')) {
+        const textOutput = await res.text();
+        console.warn(`[Payment Fetch Warning] Endpoint ${url} returned non-JSON content type (${contentType}):`, textOutput.substring(0, 150));
+        return {
+          ok: false,
+          status: res.status,
+          data: {
+            success: false,
+            error: 'Payment service returned an unexpected response format. Please try again or contact support.',
+          },
+        };
+      }
+
+      const data = await res.json();
+      return {
+        ok: res.ok,
+        status: res.status,
+        data,
+      };
+    } catch (err: any) {
+      console.error(`[Payment Fetch Network Error] ${url}:`, err);
+      return {
+        ok: false,
+        status: 0,
+        data: {
+          success: false,
+          error: err?.message?.includes('JSON')
+            ? 'Payment response was not valid JSON format.'
+            : err?.message || 'Network error connecting to payment gateway.',
+        },
+      };
+    }
+  };
+
+  const isGatewayOff = settings.gatewayStatus === false || settings.premiumPurchaseEnabled === false;
+
   const handlePurchaseClick = async () => {
     if (isPremium) {
       showToast('Premium Active', 'You already have Lifetime Premium access!', 'success');
+      return;
+    }
+
+    if (isGatewayOff) {
+      showToast('Payments Unavailable', 'Payments are temporarily unavailable.', 'info');
       return;
     }
 
@@ -76,22 +122,22 @@ export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageMod
     setIsCreatingOrder(true);
 
     try {
-      // Step 2: Request backend to create Razorpay Order
-      const res = await fetch('/api/payment/create-order', {
+      // Step 2: Request backend to create Razorpay Order (Server calculates exact price from Admin setting)
+      const { ok, data } = await safeFetchJson('/api/payment/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUser.uid,
           userEmail: currentUser.email,
-          amount: 9900, // ₹99 in paise
-          currency: 'INR',
         }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to initialize payment gateway.');
+      if (!ok || !data.success || !data.orderId) {
+        const errMsg = data?.error || 'Failed to initialize payment gateway order.';
+        setPaymentState('FAILED');
+        setPaymentMessage(`Payment Failed. ${errMsg}`);
+        showToast('Payment Error', errMsg, 'error');
+        return;
       }
 
       setOrderData({
@@ -106,9 +152,12 @@ export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageMod
       setIsCheckoutModalOpen(true);
     } catch (err: any) {
       console.error('Failed to create order:', err);
+      const cleanMsg = err?.message?.includes('JSON')
+        ? 'Invalid gateway response'
+        : err?.message || 'Failed to establish connection with payment gateway.';
       setPaymentState('FAILED');
-      setPaymentMessage('Payment Failed. Failed to establish connection with payment gateway.');
-      showToast('Payment Error', err.message || 'Payment initialization failed.', 'error');
+      setPaymentMessage(`Payment Failed. ${cleanMsg}`);
+      showToast('Payment Error', cleanMsg, 'error');
     } finally {
       setIsCreatingOrder(false);
     }
@@ -125,7 +174,7 @@ export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageMod
     setPaymentMessage('Payment Pending — Verifying signature with server...');
 
     try {
-      const verifyRes = await fetch('/api/payment/verify-payment', {
+      const { ok, data: verifyData } = await safeFetchJson('/api/payment/verify-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -138,18 +187,17 @@ export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageMod
         }),
       });
 
-      const verifyData = await verifyRes.json();
-
-      if (verifyRes.ok && verifyData.success && verifyData.verified) {
+      if (ok && verifyData.success && verifyData.verified) {
         // PAYMENT SUCCESSFULLY VERIFIED!
         setPaymentState('VERIFIED');
         setPaymentMessage('Payment Successful. Premium Activated!');
         showToast('Payment Successful', 'Payment verified! Premium Activated for your account.', 'success');
       } else {
         // PAYMENT FAILED VERIFICATION
+        const verifyErr = verifyData?.error || 'Security signature verification failed.';
         setPaymentState('FAILED');
-        setPaymentMessage('Payment Failed. Security signature verification failed. Premium was not activated.');
-        showToast('Verification Failed', verifyData.error || 'Payment signature could not be verified.', 'error');
+        setPaymentMessage(`Payment Failed. ${verifyErr} Premium was not activated.`);
+        showToast('Verification Failed', verifyErr, 'error');
       }
     } catch (err: any) {
       console.error('Verification request error:', err);
@@ -352,10 +400,12 @@ export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageMod
               <button
                 type="button"
                 onClick={handlePurchaseClick}
-                disabled={isCreatingOrder}
+                disabled={isCreatingOrder || isGatewayOff}
                 className={`w-full py-4 px-6 rounded-2xl font-black text-sm sm:text-base transition-all duration-300 shadow-xl flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 ${
                   isPremium
                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30'
+                    : isGatewayOff
+                    ? 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed shadow-none'
                     : 'bg-gradient-to-r from-amber-500 via-purple-600 to-blue-600 hover:from-amber-400 hover:via-purple-500 hover:to-blue-500 text-white shadow-purple-600/30 hover:scale-[1.01] active:scale-[0.99]'
                 }`}
               >
@@ -367,9 +417,11 @@ export const PremiumPage: React.FC<PremiumPageProps> = ({ onClose, onOpenPageMod
                 <span>
                   {isPremium
                     ? 'Premium Active (Lifetime Access)'
+                    : isGatewayOff
+                    ? 'Payments are temporarily unavailable.'
                     : isCreatingOrder
                     ? 'Initializing Payment...'
-                    : settings.buttonText || 'Get Lifetime Access — ₹99'}
+                    : settings.buttonText || `Get Lifetime Access — ${settings.price || '₹99'}`}
                 </span>
               </button>
 

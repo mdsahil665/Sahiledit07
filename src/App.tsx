@@ -174,7 +174,7 @@ function AppContent() {
 
   // Published posts sorted newest first by createdAt timestamp
   const publishedPosts = useMemo(() => {
-    return sortPostsByCreatedAtDesc(posts.filter((p) => p.status === 'published'));
+    return sortPostsByCreatedAtDesc(posts.filter((p) => !p.status || p.status === 'published'));
   }, [posts]);
 
   // Permanently fixed Featured Post and Trending Post
@@ -504,6 +504,7 @@ function AppContent() {
           onClose={() => setActivePromptModal(null)}
           onSelectPost={(p) => setActivePromptModal(p)}
           onCopyPrompt={handleCopyPrompt}
+          onOpenPage={(page) => setActivePageModal(page)}
         />
 
         <PageModal page={activePageModal} onClose={() => setActivePageModal(null)} />
@@ -863,6 +864,7 @@ function AppContent() {
         onClose={handleClosePromptModal}
         onSelectPost={(p) => handleOpenPromptModal(p)}
         onCopyPrompt={handleCopyPrompt}
+        onOpenPage={(page) => setActivePageModal(page)}
       />
 
       {/* Policy & Custom Page View Modal */}

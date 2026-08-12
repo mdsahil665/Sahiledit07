@@ -95,6 +95,7 @@ const ALL_FEATURES: FeatureItem[] = [
   // POST FEATURES
   { key: 'imageUpload', label: 'Image Upload', description: 'Allows uploading local file images when creating or editing posts.', category: 'POST FEATURES' },
   { key: 'imageUrl', label: 'Image URL', description: 'Allows specifying custom image web URLs for prompt posts.', category: 'POST FEATURES' },
+  { key: 'multiImageGallery', label: 'Multi-Image Gallery', description: 'Enables adding multiple images per post and interactive gallery viewer.', category: 'POST FEATURES' },
   { key: 'timerLock', label: 'Timer Lock', description: 'Enforces countdown timer requirement before revealing full prompt text.', category: 'POST FEATURES' },
   { key: 'promptVisibility', label: 'Prompt Visibility', description: 'Displays full prompt text preview before copy action.', category: 'POST FEATURES' },
   { key: 'promptCopy', label: 'Prompt Copy', description: 'Allows users to copy prompt text to clipboard.', category: 'POST FEATURES' },

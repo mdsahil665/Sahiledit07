@@ -70,6 +70,10 @@ service cloud.firestore {
       allow create, update, delete: if isValidId(pageId) && (isAdmin() || isSignedIn());
     }
 
+    match /settings/paymentSecrets {
+      allow get, list, create, update, delete: if isAdmin();
+    }
+
     match /settings/{settingId} {
       allow get, list: if true;
       allow create, update, delete: if isValidId(settingId) && (isAdmin() || isSignedIn());
@@ -103,7 +107,7 @@ service cloud.firestore {
       allow get: if isSignedIn();
       allow list: if isAdmin();
       allow create: if isOwner(userId) || isAdmin();
-      allow update: if isAdmin() || (isOwner(userId) && !incoming().diff(existing()).affectedKeys().hasAny(['isPremium', 'role']));
+      allow update: if isAdmin() || (isOwner(userId) && !incoming().diff(existing()).affectedKeys().hasAny(['isPremium', 'role', 'premiumType']));
       allow delete: if isAdmin();
     }
 

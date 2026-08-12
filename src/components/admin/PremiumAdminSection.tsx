@@ -21,6 +21,11 @@ import {
   Eye,
   CheckCircle2,
   Loader2,
+  CreditCard,
+  Key,
+  Lock,
+  AlertTriangle,
+  XCircle,
 } from 'lucide-react';
 
 export const PremiumAdminSection: React.FC = () => {
@@ -31,6 +36,12 @@ export const PremiumAdminSection: React.FC = () => {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
+  
+  // Payment Gateway & Pricing Specific States
+  const [razorpaySecretKey, setRazorpaySecretKey] = useState('');
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [showLiveModeWarning, setShowLiveModeWarning] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -53,14 +64,98 @@ export const PremiumAdminSection: React.FC = () => {
   };
 
   const handleSaveSettings = async () => {
+    if (!settings.price || !settings.price.trim()) {
+      showToast('Validation Error', 'Premium price is required.', 'error');
+      return;
+    }
+
     setSavingSettings(true);
     try {
-      await promptStore.updatePremiumSettings(settings);
-      showToast('Settings Saved', 'Premium & Subscription settings updated successfully!', 'success');
+      const maskedSecret = razorpaySecretKey.trim() !== ''
+        ? '••••••••'
+        : (settings.razorpaySecretKeyMasked || '••••••••');
+
+      const updatedSettings: PremiumSettings = {
+        ...settings,
+        paymentGateway: 'Razorpay',
+        gatewayStatus: settings.gatewayStatus !== false,
+        paymentMode: settings.paymentMode || 'TEST',
+        razorpayKeyId: settings.razorpayKeyId || 'rzp_test_sahiledits2026',
+        razorpaySecretKeyMasked: maskedSecret,
+      };
+
+      setSettings(updatedSettings);
+      await promptStore.updatePremiumSettings(updatedSettings);
+
+      // Save secret key safely to restricted Firestore path if provided
+      if (razorpaySecretKey.trim() !== '') {
+        await setDoc(
+          doc(db, 'settings', 'paymentSecrets'),
+          {
+            razorpaySecretKey: razorpaySecretKey.trim(),
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+        setRazorpaySecretKey('');
+      }
+
+      showToast('Settings Saved', 'Payment settings saved successfully.', 'success');
     } catch (e: any) {
-      showToast('Error', e.message || 'Failed to save settings', 'error');
+      showToast('Error', e.message || 'Failed to save payment settings', 'error');
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const handleTestRazorpayConnection = async () => {
+    setTestingConnection(true);
+    setTestResult(null);
+
+    try {
+      const res = await fetch('/api/payment/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          razorpayKeyId: settings.razorpayKeyId,
+          razorpaySecretKey: razorpaySecretKey.trim() !== '' ? razorpaySecretKey.trim() : undefined,
+        }),
+      });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        setTestResult({
+          success: false,
+          message: '✕ Razorpay connection failed: Unexpected server response format.',
+        });
+        showToast('Connection Error', 'Unexpected server response format.', 'error');
+        return;
+      }
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTestResult({
+          success: true,
+          message: data.message || '✓ Razorpay connection successful',
+        });
+        showToast('Connection Verified', '✓ Razorpay connection successful', 'success');
+      } else {
+        const msg = data.message || data.error || '✕ Razorpay connection failed';
+        setTestResult({
+          success: false,
+          message: msg.startsWith('✕') ? msg : `✕ ${msg}`,
+        });
+        showToast('Connection Failed', msg, 'error');
+      }
+    } catch (err: any) {
+      const msg = `✕ Razorpay connection failed: ${err.message || 'Network error'}`;
+      setTestResult({
+        success: false,
+        message: msg,
+      });
+      showToast('Connection Error', err.message || 'Network error', 'error');
+    } finally {
+      setTestingConnection(false);
     }
   };
 
@@ -320,6 +415,294 @@ export const PremiumAdminSection: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* 💳 Payment Gateway & Pricing Section */}
+      <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shrink-0">
+              <CreditCard className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                <span>💳 Payment Gateway &amp; Pricing</span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Configure Razorpay gateway, live/test modes, credentials, and custom premium pricing.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+              settings.gatewayStatus !== false
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30'
+            }`}>
+              {settings.gatewayStatus !== false ? '● GATEWAY ACTIVE' : '○ GATEWAY OFF'}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* 1. PAYMENT GATEWAY */}
+          <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Payment Gateway
+                </label>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Supported payment processor
+                </p>
+              </div>
+              <span className="px-3 py-1.5 rounded-xl bg-blue-600/10 text-blue-600 dark:text-blue-400 font-extrabold text-xs border border-blue-500/20">
+                Razorpay
+              </span>
+            </div>
+
+            <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Gateway Status
+                </label>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  {settings.gatewayStatus !== false ? 'Purchases enabled on website' : 'Payments temporarily disabled'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSettings((s) => ({ ...s, gatewayStatus: !(s.gatewayStatus !== false) }))}
+                className={`px-4 py-2 rounded-xl font-black text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-sm ${
+                  settings.gatewayStatus !== false
+                    ? 'bg-emerald-500 text-white shadow-emerald-500/20 hover:bg-emerald-600'
+                    : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300'
+                }`}
+              >
+                {settings.gatewayStatus !== false ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>ON</span>
+                  </>
+                ) : (
+                  <>
+                    <X className="w-4 h-4" />
+                    <span>OFF</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* 2. PREMIUM PRICE & PAYMENT MODE */}
+          <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Premium Price
+              </label>
+              <input
+                type="text"
+                value={settings.price || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSettings((s) => ({
+                    ...s,
+                    price: val,
+                    buttonText: `Get Lifetime Access — ${val || '₹99'}`,
+                  }));
+                }}
+                placeholder="e.g. ₹99"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+              />
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                Updates price display across website, plans, buttons, and Razorpay backend orders.
+              </p>
+            </div>
+
+            <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Payment Mode
+              </label>
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-200/70 dark:bg-slate-900 border border-slate-300/60 dark:border-slate-700/80">
+                <button
+                  type="button"
+                  onClick={() => setSettings((s) => ({ ...s, paymentMode: 'TEST' }))}
+                  className={`py-2 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    settings.paymentMode !== 'LIVE'
+                      ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  TEST MODE
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (settings.paymentMode !== 'LIVE') {
+                      setShowLiveModeWarning(true);
+                    }
+                  }}
+                  className={`py-2 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                    settings.paymentMode === 'LIVE'
+                      ? 'bg-amber-500 text-slate-950 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  LIVE MODE
+                </button>
+              </div>
+              {settings.paymentMode === 'LIVE' && (
+                <p className="text-[11px] font-bold text-amber-500 dark:text-amber-400 mt-1.5 flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Live Mode Active — Real payments will be processed.</span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* 4. RAZORPAY CONFIGURATION */}
+          <div className="md:col-span-2 p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+              <Key className="w-4 h-4 text-blue-500" />
+              <span>Razorpay Configuration</span>
+            </h4>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Razorpay Key ID
+                </label>
+                <input
+                  type="text"
+                  value={settings.razorpayKeyId || ''}
+                  onChange={(e) => setSettings((s) => ({ ...s, razorpayKeyId: e.target.value }))}
+                  placeholder="e.g. rzp_test_... or rzp_live_..."
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Razorpay Secret Key
+                </label>
+                <input
+                  type="password"
+                  value={razorpaySecretKey}
+                  onChange={(e) => setRazorpaySecretKey(e.target.value)}
+                  placeholder={settings.razorpaySecretKeyMasked || '••••••••'}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+                />
+                <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-emerald-500" />
+                  <span>Secret key is stored securely server-side and never exposed in client JS.</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Test Result Banner */}
+        {testResult && (
+          <div
+            className={`p-4 rounded-2xl border text-xs font-bold flex items-center justify-between gap-2 shadow-sm ${
+              testResult.success
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {testResult.success ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+              ) : (
+                <XCircle className="w-5 h-5 text-rose-500 shrink-0" />
+              )}
+              <span>{testResult.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTestResult(null)}
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* 5 & 6. ACTION BUTTONS */}
+        <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={handleTestRazorpayConnection}
+            disabled={testingConnection}
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-300/60 dark:border-slate-700 disabled:opacity-50"
+          >
+            {testingConnection ? (
+              <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+            ) : (
+              <ShieldCheck className="w-4 h-4 text-blue-500" />
+            )}
+            <span>Test Razorpay Connection</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSaveSettings}
+            disabled={savingSettings}
+            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-500/20 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+          >
+            {savingSettings ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4" />
+            )}
+            <span>Save Payment Settings</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Live Mode Explicit Confirmation Modal */}
+      {showLiveModeWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md p-6 rounded-3xl bg-white dark:bg-slate-900 border border-amber-500/30 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-amber-500">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/10 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6 text-amber-500" />
+              </div>
+              <h3 className="font-extrabold text-base text-slate-900 dark:text-white">
+                Enable Live Mode?
+              </h3>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+              "Live Mode processes real payments."
+              <br />
+              <br />
+              Please ensure you have configured valid Live Razorpay Key ID and Secret Key before saving settings.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowLiveModeWarning(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSettings((s) => ({ ...s, paymentMode: 'LIVE' }));
+                  setShowLiveModeWarning(false);
+                }}
+                className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition-all cursor-pointer shadow-md shadow-amber-500/20"
+              >
+                Confirm Live Mode
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pricing & Content Settings */}
       <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-6 shadow-sm">

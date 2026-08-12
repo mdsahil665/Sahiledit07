@@ -40,44 +40,79 @@ export const AdBanner: React.FC<AdBannerProps> = ({ position, settings, classNam
   const fc = promptStore.getFeatureControls();
   const premiumSettings = promptStore.getPremiumSettings();
 
-  // Premium User check: Premium users never see ads
-  if (isPremium) return null;
-
-  // Premium Admin Ads setting check: If Ads switch is explicitly OFF in Premium Settings, hide ads
-  if (premiumSettings.adsEnabled === false && !settings?.testMode) {
-    // Only show if test mode is enabled in monetization for previewing
-    if (!settings?.testMode) return null;
-  }
-
-  // Feature Control Center Master & Position checks
-  if (!fc.masterAdsSwitch) return null;
-
-  // Position-based feature flag checks
-  if (position === 'topBanner' && !fc.topBannerAd) return null;
-  if (position === 'bottomBanner' && !fc.bottomBannerAd) return null;
-  if (position === 'betweenPosts' && !fc.inFeedAds) return null;
-  if ((position === 'insidePostTop' || position === 'insidePrompt' || position === 'belowPrompt' || position === 'beforeCopyButton' || position === 'afterCopyButton') && !fc.insidePostAds) return null;
-  if (position === 'stickyBottomBanner' && !fc.stickyAds) return null;
-
-  // Network-based feature flag checks
-  const activeNetId = settings.activeNetwork || 'adsense';
-  if (activeNetId === 'adsense' && !fc.googleAdSense) return null;
-  if (activeNetId === 'monetag' && !fc.monetag) return null;
-  if (activeNetId === 'propeller' && !fc.propellerAds) return null;
-  if (activeNetId === 'adsterra' && !fc.adsterra) return null;
-  if (activeNetId === 'medianet' && !fc.mediaNet) return null;
-  if (activeNetId === 'custom' && !fc.customAds) return null;
-
-  // 1. Check global enable and position enable
-  if (!settings || !settings.enabled || !settings.positions?.[position]) {
-    return null;
-  }
-
-  const activeNetConfig = settings.networks?.[activeNetId];
+  const activeNetId = settings?.activeNetwork || 'adsense';
+  const activeNetConfig = settings?.networks?.[activeNetId];
   const networkName = activeNetConfig?.name || NETWORK_NAMES[activeNetId] || 'Ad Network';
 
-  // 2. TEST MODE rendering
-  if (settings.testMode) {
+  const pubId = (activeNetConfig?.publisherId || settings?.publisherId || '').trim();
+  const scriptCode = (activeNetConfig?.scriptCode || '').trim();
+
+  // Determine if ad should be visible at all
+  let isAllowed = true;
+
+  if (isPremium) isAllowed = false;
+
+  if (premiumSettings.adsEnabled === false && !settings?.testMode) {
+    if (!settings?.testMode) isAllowed = false;
+  }
+
+  if (!fc.masterAdsSwitch) isAllowed = false;
+
+  if (position === 'topBanner' && !fc.topBannerAd) isAllowed = false;
+  if (position === 'bottomBanner' && !fc.bottomBannerAd) isAllowed = false;
+  if (position === 'betweenPosts' && !fc.inFeedAds) isAllowed = false;
+  if ((position === 'insidePostTop' || position === 'insidePrompt' || position === 'belowPrompt' || position === 'beforeCopyButton' || position === 'afterCopyButton') && !fc.insidePostAds) isAllowed = false;
+  if (position === 'stickyBottomBanner' && !fc.stickyAds) isAllowed = false;
+
+  if (activeNetId === 'adsense' && !fc.googleAdSense) isAllowed = false;
+  if (activeNetId === 'monetag' && !fc.monetag) isAllowed = false;
+  if (activeNetId === 'propeller' && !fc.propellerAds) isAllowed = false;
+  if (activeNetId === 'adsterra' && !fc.adsterra) isAllowed = false;
+  if (activeNetId === 'medianet' && !fc.mediaNet) isAllowed = false;
+  if (activeNetId === 'custom' && !fc.customAds) isAllowed = false;
+
+  if (!settings || !settings.enabled || !settings.positions?.[position]) {
+    isAllowed = false;
+  }
+
+  const isTestMode = Boolean(settings?.testMode);
+  const isLiveConfigured = Boolean(activeNetConfig && activeNetConfig.enabled && (pubId || scriptCode));
+  const shouldShowLiveAd = isAllowed && !isTestMode && isLiveConfigured;
+
+  // Handle Active Network script initialization unconditionally
+  useEffect(() => {
+    if (!shouldShowLiveAd) return;
+
+    if (activeNetId === 'adsense' && pubId) {
+      if (!document.querySelector(`script[src*="adsbygoogle.js?client=${pubId}"]`)) {
+        const script = document.createElement('script');
+        script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${pubId}`;
+        script.async = true;
+        script.crossOrigin = 'anonymous';
+        document.head.appendChild(script);
+      }
+      try {
+        // @ts-ignore
+        (window.adsbygoogle = window.adsbygoogle || []).push({});
+      } catch (e) {
+        // Ignore re-init
+      }
+    } else if (activeNetId !== 'custom' && scriptCode && containerRef.current) {
+      try {
+        const range = document.createRange();
+        range.selectNode(containerRef.current);
+        const documentFragment = range.createContextualFragment(scriptCode);
+        containerRef.current.innerHTML = '';
+        containerRef.current.appendChild(documentFragment);
+      } catch (e) {
+        console.warn('Ad script insertion warning:', e);
+      }
+    }
+  }, [shouldShowLiveAd, activeNetId, pubId, scriptCode]);
+
+  if (!isAllowed) return null;
+
+  if (isTestMode) {
     return (
       <div className={`my-4 overflow-hidden rounded-2xl border-2 border-dashed border-amber-500/40 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-amber-500/10 p-4 text-center transition-all ${className}`}>
         <div className="flex items-center justify-between gap-2 border-b border-amber-500/20 pb-2 mb-2">
@@ -101,51 +136,7 @@ export const AdBanner: React.FC<AdBannerProps> = ({ position, settings, classNam
     );
   }
 
-  // 3. LIVE MODE - Check if network is enabled and configured
-  if (!activeNetConfig || !activeNetConfig.enabled) {
-    // Automatically hide without blank space if active network is disabled or missing
-    return null;
-  }
-
-  const pubId = (activeNetConfig.publisherId || settings.publisherId || '').trim();
-  const scriptCode = (activeNetConfig.scriptCode || '').trim();
-
-  // If no publisher ID and no script code, hide automatically
-  if (!pubId && !scriptCode) {
-    return null;
-  }
-
-  // 4. Handle Active Network rendering
-  useEffect(() => {
-    if (settings.testMode) return;
-
-    if (activeNetId === 'adsense' && pubId) {
-      if (!document.querySelector(`script[src*="adsbygoogle.js?client=${pubId}"]`)) {
-        const script = document.createElement('script');
-        script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${pubId}`;
-        script.async = true;
-        script.crossOrigin = 'anonymous';
-        document.head.appendChild(script);
-      }
-      try {
-        // @ts-ignore
-        (window.adsbygoogle = window.adsbygoogle || []).push({});
-      } catch (e) {
-        // Ignore re-init
-      }
-    } else if (activeNetId !== 'custom' && scriptCode && containerRef.current) {
-      // Inject external network scripts if required
-      try {
-        const range = document.createRange();
-        range.selectNode(containerRef.current);
-        const documentFragment = range.createContextualFragment(scriptCode);
-        containerRef.current.innerHTML = '';
-        containerRef.current.appendChild(documentFragment);
-      } catch (e) {
-        console.warn('Ad script insertion warning:', e);
-      }
-    }
-  }, [activeNetId, pubId, scriptCode, position, settings.testMode]);
+  if (!isLiveConfigured) return null;
 
   return (
     <div className={`ad-container my-4 overflow-hidden rounded-2xl flex flex-col items-center justify-center ${className}`}>

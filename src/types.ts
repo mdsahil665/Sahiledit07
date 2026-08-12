@@ -65,6 +65,7 @@ export interface PromptPost {
   categoryName?: string;
   tags: string[];
   imageUrl: string;
+  images?: string[];
   views: number;
   copies: number;
   likes?: number;
@@ -335,6 +336,7 @@ export interface FeatureControls {
   // POST FEATURES
   imageUpload: boolean;
   imageUrl: boolean;
+  multiImageGallery?: boolean;
   timerLock: boolean;
   promptVisibility: boolean;
   promptCopy: boolean;
@@ -443,6 +445,7 @@ export const DEFAULT_FEATURE_CONTROLS: FeatureControls = {
   // POST FEATURES
   imageUpload: true,
   imageUrl: true,
+  multiImageGallery: true,
   timerLock: true,
   promptVisibility: true,
   promptCopy: true,
@@ -560,6 +563,12 @@ export interface PremiumSettings {
   subtitle: string;
   benefits: string[];
   adsEnabled: boolean;
+  // Payment Gateway & Pricing
+  paymentGateway?: 'Razorpay';
+  gatewayStatus?: boolean; // ON / OFF
+  paymentMode?: 'TEST' | 'LIVE';
+  razorpayKeyId?: string;
+  razorpaySecretKeyMasked?: string;
 }
 
 export const DEFAULT_PREMIUM_SETTINGS: PremiumSettings = {
@@ -580,6 +589,11 @@ export const DEFAULT_PREMIUM_SETTINGS: PremiumSettings = {
     'Access future premium features',
   ],
   adsEnabled: false,
+  paymentGateway: 'Razorpay',
+  gatewayStatus: true,
+  paymentMode: 'TEST',
+  razorpayKeyId: 'rzp_test_sahiledits2026',
+  razorpaySecretKeyMasked: '••••••••',
 };
 
 
