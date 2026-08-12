@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PromptPost, Category, PostStatus } from '../../types';
-import { X, Upload, Link as LinkIcon, Sparkles, Image as ImageIcon, Eye, Save, Calendar, Clock, Lock, Loader2 } from 'lucide-react';
+import { X, Upload, Link as LinkIcon, Sparkles, Image as ImageIcon, Eye, Save, Calendar, Clock, Lock, Loader2, FileText, Sliders, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../Toast';
 import { promptStore } from '../../services/promptStore';
@@ -141,29 +141,32 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       finalImageUrl = await compressDataUrl(finalImageUrl);
     }
 
-    onSave({
-      title,
-      shortDescription,
-      fullPrompt,
-      categoryId: categoryId || categories[0]?.id || 'chatgpt',
-      tags: parsedTags,
-      imageUrl: finalImageUrl,
-      featured,
-      trending,
-      status,
-      scheduledDate,
-      seoTitle: seoTitle || `${title} - Sahil Edits Prompt`,
-      metaDescription: metaDescription || shortDescription,
-      timerOverride: {
-        enabled: timerEnabled,
-        seconds: timerSeconds,
+    onSave(
+      {
+        title,
+        shortDescription,
+        fullPrompt,
+        categoryId: categoryId || categories[0]?.id || 'chatgpt',
+        tags: parsedTags,
+        imageUrl: finalImageUrl,
+        featured,
+        trending,
+        status,
+        scheduledDate,
+        seoTitle: seoTitle || `${title} - Sahil Edits Prompt`,
+        metaDescription: metaDescription || shortDescription,
+        timerOverride: {
+          enabled: timerEnabled,
+          seconds: timerSeconds,
+        },
       },
-    }, post?.id);
+      post?.id
+    );
   };
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-zinc-950/80 backdrop-blur-md overflow-y-auto">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md overflow-y-auto">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -173,22 +176,22 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
         />
 
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
+          initial={{ opacity: 0, scale: 0.96, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden z-10"
+          exit={{ opacity: 0, scale: 0.96, y: 15 }}
+          className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl bg-zinc-900 border border-zinc-800 shadow-2xl overflow-hidden z-10"
         >
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
+          {/* Header Bar */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-950/80">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center border border-blue-500/20">
+              <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/20 shadow-md">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-lg text-zinc-900 dark:text-white">
-                  {post ? 'Edit AI Prompt' : 'Publish New AI Prompt'}
+                <h3 className="font-extrabold text-lg text-white">
+                  {post ? 'Edit AI Prompt Post' : 'Publish New AI Prompt'}
                 </h3>
-                <p className="text-xs text-zinc-500">Fill in prompt parameters and metadata</p>
+                <p className="text-xs text-zinc-400">Configure prompt info, media, badges, and SEO metadata</p>
               </div>
             </div>
 
@@ -196,334 +199,280 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
               <button
                 type="button"
                 onClick={() => setIsPreviewMode(!isPreviewMode)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
                   isPreviewMode
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700'
                 }`}
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>{isPreviewMode ? 'Edit Mode' : 'Preview Card'}</span>
+                <span>{isPreviewMode ? 'Back to Editor' : 'Live Card Preview'}</span>
               </button>
 
               <button
                 onClick={onClose}
-                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
           </div>
 
-          {/* Body */}
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Form Scrollable Body */}
+          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
             {isPreviewMode ? (
               /* Live Preview Card */
-              <div className="p-6 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 space-y-4">
+              <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">Card Preview</h4>
-                <div className="max-w-sm mx-auto rounded-3xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-xl">
-                  <div className="w-full bg-zinc-100 dark:bg-zinc-950 p-2 flex items-center justify-center rounded-t-3xl">
-                    {imageUrl && (
-                      <img src={imageUrl} alt="Preview" className="w-full h-auto max-h-[300px] object-contain rounded-2xl" />
-                    )}
-                  </div>
-                  <div className="p-4 space-y-2">
-                    <h5 className="font-bold text-base text-zinc-900 dark:text-white">{title || 'Untitled Prompt'}</h5>
-                    <p className="text-xs text-zinc-500 line-clamp-2">{shortDescription || 'Short description preview...'}</p>
-                    <div className="pt-2 font-mono text-xs bg-zinc-950 text-zinc-200 p-2 rounded-xl line-clamp-3">
-                      {fullPrompt || 'Full prompt text preview...'}
-                    </div>
+                <div className="max-w-sm mx-auto rounded-3xl bg-zinc-900 border border-zinc-800 overflow-hidden shadow-2xl p-4 space-y-3">
+                  {imageUrl && (
+                    <img src={imageUrl} alt="Preview" className="w-full h-48 object-cover rounded-2xl border border-zinc-800" />
+                  )}
+                  <h5 className="font-bold text-base text-white">{title || 'Untitled Prompt'}</h5>
+                  <p className="text-xs text-zinc-400 line-clamp-2">{shortDescription || 'Short description preview...'}</p>
+                  <div className="font-mono text-xs bg-zinc-950 text-zinc-300 p-3 rounded-xl border border-zinc-800 line-clamp-3">
+                    {fullPrompt || 'Full prompt text preview...'}
                   </div>
                 </div>
               </div>
             ) : (
-              /* Normal Form Fields */
-              <>
-                {/* Image Source Selection */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Prompt Cover Image
-                  </label>
-                  <div className="flex items-center gap-2 mb-2">
-                    <button
-                      type="button"
-                      onClick={() => setImageMode('url')}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                        imageMode === 'url'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
-                      }`}
-                    >
-                      <LinkIcon className="w-3.5 h-3.5" />
-                      <span>Photo URL</span>
-                    </button>
+              /* Editor Structured Cards */
+              <div className="space-y-6">
+                {/* CARD 1: POST INFORMATION */}
+                <div className="p-6 rounded-3xl bg-zinc-950/60 border border-zinc-800/80 space-y-4">
+                  <div className="flex items-center gap-2 border-b border-zinc-800 pb-3">
+                    <FileText className="w-4 h-4 text-blue-400" />
+                    <h4 className="text-xs font-black uppercase tracking-wider text-zinc-300">
+                      1. Post Information
+                    </h4>
+                  </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setImageMode('upload')}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                        imageMode === 'upload'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
-                      }`}
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Upload Image / Cloudinary</span>
-                    </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <label className="text-xs font-bold text-zinc-300">Prompt Title *</label>
+                      <input
+                        type="text"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="e.g. Ultra-Realistic Cinematic Portrait Generator"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs font-semibold text-white focus:outline-none focus:border-blue-500"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-zinc-300">Category *</label>
+                      <select
+                        value={categoryId}
+                        onChange={(e) => setCategoryId(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs font-semibold text-white focus:outline-none focus:border-blue-500"
+                      >
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-zinc-300">Tags (Comma Separated)</label>
+                      <input
+                        type="text"
+                        value={tagsInput}
+                        onChange={(e) => setTagsInput(e.target.value)}
+                        placeholder="chatgpt, portrait, photorealistic, Midjourney"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs font-semibold text-white focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <label className="text-xs font-bold text-zinc-300">Short Summary / Description</label>
+                      <input
+                        type="text"
+                        value={shortDescription}
+                        onChange={(e) => setShortDescription(e.target.value)}
+                        placeholder="Brief 1-2 sentence overview of what this prompt creates..."
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs font-semibold text-white focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <label className="text-xs font-bold text-zinc-300">Full AI Prompt Content *</label>
+                      <textarea
+                        rows={5}
+                        value={fullPrompt}
+                        onChange={(e) => setFullPrompt(e.target.value)}
+                        placeholder="Paste full prompt template text here..."
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-mono text-zinc-200 focus:outline-none focus:border-blue-500 leading-relaxed"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* CARD 2: MEDIA & COVER IMAGE */}
+                <div className="p-6 rounded-3xl bg-zinc-950/60 border border-zinc-800/80 space-y-4">
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4 text-purple-400" />
+                      <h4 className="text-xs font-black uppercase tracking-wider text-zinc-300">
+                        2. Cover Media Asset
+                      </h4>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setImageMode('url')}
+                        className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                          imageMode === 'url' ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-400'
+                        }`}
+                      >
+                        Image URL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setImageMode('upload')}
+                        className={`px-3 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer ${
+                          imageMode === 'upload' ? 'bg-purple-600 text-white' : 'bg-zinc-800 text-zinc-400'
+                        }`}
+                      >
+                        Upload Image
+                      </button>
+                    </div>
                   </div>
 
                   {imageMode === 'url' ? (
                     <input
-                      type="url"
+                      type="text"
                       value={imageUrl}
                       onChange={(e) => setImageUrl(e.target.value)}
-                      placeholder="https://images.unsplash.com/photo-..."
-                      className="w-full px-4 py-2.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 focus:outline-none focus:border-blue-500"
+                      placeholder="https://images.unsplash.com/..."
+                      className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs font-semibold text-white focus:outline-none focus:border-purple-500"
                     />
                   ) : (
-                    <div className="flex items-center gap-3">
+                    <div className="relative border-2 border-dashed border-zinc-800 rounded-2xl p-6 text-center hover:border-purple-500/50 transition-colors">
+                      <Upload className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+                      <p className="text-xs font-bold text-white">Click or drag image file to upload</p>
+                      <p className="text-[10px] text-zinc-500 mt-1">Uploads automatically to Cloudinary cloud storage</p>
                       <input
                         type="file"
                         accept="image/*"
                         onChange={handleFileUpload}
-                        className="text-xs text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-600 dark:file:bg-zinc-800 dark:file:text-zinc-300 hover:file:bg-blue-100"
+                        className="absolute inset-0 opacity-0 cursor-pointer"
                       />
                     </div>
                   )}
 
                   {imageUrl && (
-                    <div className="w-28 h-20 rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 mt-2 bg-zinc-100 dark:bg-zinc-950 p-1 flex items-center justify-center">
-                      <img src={imageUrl} alt="Thumbnail" className="w-full h-full object-contain rounded-lg" />
+                    <div className="relative w-32 h-24 rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900">
+                      <img src={imageUrl} alt="Cover preview" className="w-full h-full object-cover" />
                     </div>
                   )}
                 </div>
 
-                {/* Title & Category */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="sm:col-span-2 space-y-1.5">
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                      Title *
-                    </label>
-                    <input
-                      type="text"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder="e.g., Cyberpunk Midjourney v6 Portrait"
-                      className="w-full px-4 py-2.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
-                      required
-                    />
+                {/* CARD 3: PUBLISHING & BADGES */}
+                <div className="p-6 rounded-3xl bg-zinc-950/60 border border-zinc-800/80 space-y-4">
+                  <div className="flex items-center gap-2 border-b border-zinc-800 pb-3">
+                    <Sliders className="w-4 h-4 text-emerald-400" />
+                    <h4 className="text-xs font-black uppercase tracking-wider text-zinc-300">
+                      3. Publishing & Badges
+                    </h4>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                      Category *
-                    </label>
-                    <select
-                      value={categoryId}
-                      onChange={(e) => setCategoryId(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
-                    >
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Short Description */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Short Description
-                  </label>
-                  <input
-                    type="text"
-                    value={shortDescription}
-                    onChange={(e) => setShortDescription(e.target.value)}
-                    placeholder="Brief 1-2 sentence overview for the card preview..."
-                    className="w-full px-4 py-2.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Full Prompt Text */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Full AI Prompt Text *
-                  </label>
-                  <textarea
-                    rows={6}
-                    value={fullPrompt}
-                    onChange={(e) => setFullPrompt(e.target.value)}
-                    placeholder="Paste the full exact prompt text here..."
-                    className="w-full px-4 py-3 rounded-2xl bg-zinc-950 border border-zinc-800 font-mono text-sm text-zinc-100 focus:outline-none focus:border-blue-500"
-                    required
-                  />
-                </div>
-
-                {/* Tags */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    Tags (Comma Separated)
-                  </label>
-                  <input
-                    type="text"
-                    value={tagsInput}
-                    onChange={(e) => setTagsInput(e.target.value)}
-                    placeholder="e.g. Midjourney, Photorealistic, 3D, Cyberpunk"
-                    className="w-full px-4 py-2.5 rounded-2xl bg-zinc-50 dark:bg-zinc-800/80 border border-zinc-200 dark:border-zinc-700 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                {/* Individual Post Timer Settings */}
-                <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-amber-500" />
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-900 dark:text-zinc-100">
-                        Post Timer Unlock Settings
-                      </h4>
-                    </div>
-                    <label className="flex items-center gap-2 text-xs font-bold cursor-pointer">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <label className="flex items-center gap-3 p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 cursor-pointer hover:border-zinc-700 transition-colors">
                       <input
                         type="checkbox"
-                        checked={timerEnabled}
-                        onChange={(e) => setTimerEnabled(e.target.checked)}
-                        className="w-4 h-4 rounded text-amber-500"
+                        checked={featured}
+                        onChange={(e) => setFeatured(e.target.checked)}
+                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
                       />
-                      <span>{timerEnabled ? 'Timer Enabled' : 'Timer Disabled'}</span>
+                      <div>
+                        <span className="text-xs font-bold text-white block">Featured Badge</span>
+                        <span className="text-[10px] text-zinc-500">Show on Hero banner</span>
+                      </div>
                     </label>
-                  </div>
 
-                  {timerEnabled && (
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-zinc-500">Lock Duration:</span>
+                    <label className="flex items-center gap-3 p-3.5 rounded-2xl bg-zinc-900 border border-zinc-800 cursor-pointer hover:border-zinc-700 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={trending}
+                        onChange={(e) => setTrending(e.target.checked)}
+                        className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500"
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-white block">Trending Badge</span>
+                        <span className="text-[10px] text-zinc-500">Show in Trending feed</span>
+                      </div>
+                    </label>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                        Publication Status
+                      </label>
                       <select
-                        value={timerSeconds}
-                        onChange={(e) => setTimerSeconds(Number(e.target.value))}
-                        className="px-3 py-1.5 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-xs font-bold text-zinc-900 dark:text-white"
+                        value={status}
+                        onChange={(e) => setStatus(e.target.value as PostStatus)}
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-3.5 py-2 text-xs font-semibold text-white focus:outline-none focus:border-emerald-500"
                       >
-                        <option value={0}>0s (Instant Unlock)</option>
-                        <option value={3}>3 Seconds</option>
-                        <option value={5}>5 Seconds (Default)</option>
-                        <option value={10}>10 Seconds</option>
-                        <option value={15}>15 Seconds</option>
-                        <option value={20}>20 Seconds</option>
-                        <option value={30}>30 Seconds</option>
-                        <option value={60}>60 Seconds</option>
+                        <option value="published">Published (Live)</option>
+                        <option value="draft">Draft (Private)</option>
+                        <option value="scheduled">Scheduled</option>
                       </select>
                     </div>
-                  )}
+                  </div>
                 </div>
 
-                {/* SEO Fields */}
-                <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                    SEO Metadata (Optional)
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* CARD 4: SEO METADATA */}
+                <div className="p-6 rounded-3xl bg-zinc-950/60 border border-zinc-800/80 space-y-4">
+                  <div className="flex items-center gap-2 border-b border-zinc-800 pb-3">
+                    <Sparkles className="w-4 h-4 text-sky-400" />
+                    <h4 className="text-xs font-black uppercase tracking-wider text-zinc-300">
+                      4. SEO & Search Engine Optimization
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <input
                       type="text"
                       value={seoTitle}
                       onChange={(e) => setSeoTitle(e.target.value)}
-                      placeholder="SEO Page Title"
-                      className="px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-xs text-zinc-900 dark:text-white"
+                      placeholder="Custom SEO Title"
+                      className="bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
                     />
                     <input
                       type="text"
                       value={metaDescription}
                       onChange={(e) => setMetaDescription(e.target.value)}
-                      placeholder="Meta Description"
-                      className="px-3.5 py-2 rounded-xl bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-xs text-zinc-900 dark:text-white"
+                      placeholder="Meta Description for Google"
+                      className="bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
                     />
                   </div>
                 </div>
-
-                {/* Toggles & Status */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-                  <label className="flex items-center gap-3 p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-800 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={featured}
-                      onChange={(e) => {
-                        const willBeFeatured = e.target.checked;
-                        if (willBeFeatured) {
-                          const current = promptStore.getFeaturedPost();
-                          if (current && current.id !== post?.id) {
-                            const replace = window.confirm(
-                              `Replace the current Featured Post ("${current.title}")?`
-                            );
-                            if (!replace) return;
-                          }
-                        }
-                        setFeatured(willBeFeatured);
-                      }}
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">Featured Post</span>
-                  </label>
-
-                  <label className="flex items-center gap-3 p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-800 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={trending}
-                      onChange={(e) => {
-                        const willBeTrending = e.target.checked;
-                        if (willBeTrending) {
-                          const current = promptStore.getTrendingPost();
-                          if (current && current.id !== post?.id) {
-                            const replace = window.confirm(
-                              `Replace the current Trending Post ("${current.title}")?`
-                            );
-                            if (!replace) return;
-                          }
-                        }
-                        setTrending(willBeTrending);
-                      }}
-                      className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500"
-                    />
-                    <span className="text-xs font-bold text-zinc-800 dark:text-zinc-200">Trending Post</span>
-                  </label>
-
-                  <div className="space-y-1">
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-400">
-                      Publish Status
-                    </label>
-                    <select
-                      value={status}
-                      onChange={(e) => setStatus(e.target.value as PostStatus)}
-                      className="w-full px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-xs text-zinc-900 dark:text-white font-semibold"
-                    >
-                      <option value="published">Published</option>
-                      <option value="draft">Save Draft</option>
-                      <option value="scheduled">Scheduled</option>
-                    </select>
-                  </div>
-                </div>
-              </>
+              </div>
             )}
 
-            {/* Modal Actions */}
-            <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    setStatus('draft');
-                    handleSubmit(e);
-                  }}
-                  className="px-4 py-2.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 font-bold text-xs border border-amber-500/30 transition-colors flex items-center gap-1.5"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>Save Draft</span>
-                </button>
-              </div>
+            {/* Sticky Bottom Actions Bar */}
+            <div className="sticky bottom-0 -mx-6 -mb-6 p-4 bg-zinc-950/95 backdrop-blur-md border-t border-zinc-800 flex items-center justify-between gap-3 z-20">
+              <button
+                type="button"
+                onClick={(e) => {
+                  setStatus('draft');
+                  handleSubmit(e);
+                }}
+                className="px-4 py-2.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 font-bold text-xs border border-amber-500/30 transition-all cursor-pointer flex items-center gap-2"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Save as Draft</span>
+              </button>
 
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-5 py-2.5 rounded-2xl bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs font-bold hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                  className="px-5 py-2.5 rounded-2xl bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 text-xs font-bold transition-all cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -531,7 +480,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                 <button
                   type="submit"
                   disabled={isUploading}
-                  className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs shadow-lg shadow-blue-500/25 flex items-center gap-2 transition-all"
+                  className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs shadow-xl shadow-blue-600/20 flex items-center gap-2 transition-all cursor-pointer"
                 >
                   {isUploading ? (
                     <>

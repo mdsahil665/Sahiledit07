@@ -14,6 +14,7 @@ import { AdBanner } from './components/AdBanner';
 import { LoginModal } from './components/LoginModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { AdminDashboard } from './components/admin/AdminDashboard';
+import { PremiumPage } from './components/PremiumPage';
 import { PostFormModal } from './components/admin/PostFormModal';
 import { CategoryFormModal } from './components/admin/CategoryFormModal';
 import { SEOHelper } from './components/SEOHelper';
@@ -46,6 +47,7 @@ function AppContent() {
   const [featureControls, setFeatureControls] = useState(() => promptStore.getFeatureControls());
   const [websiteSections, setWebsiteSections] = useState(() => promptStore.getWebsiteSections());
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+  const [showPremiumPage, setShowPremiumPage] = useState(false);
 
   // Search, Category, and Active Tab Filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,7 +55,7 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<'latest' | 'trending' | 'popular'>('latest');
 
   // Infinite Scroll limit state
-  const [visibleCount, setVisibleCount] = useState(6);
+  const [visibleCount, setVisibleCount] = useState(16);
   const observerRef = useRef<HTMLDivElement | null>(null);
 
   // Back to Top button state
@@ -106,9 +108,9 @@ function AppContent() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Protected Admin Route Check (?admin, #admin, /admin, Ctrl+Shift+A)
+  // Protected Admin & Premium Route Check
   useEffect(() => {
-    const checkAdminUrl = () => {
+    const checkUrlRoutes = () => {
       const search = window.location.search.toLowerCase();
       const hash = window.location.hash.toLowerCase();
       const path = window.location.pathname.toLowerCase();
@@ -121,11 +123,15 @@ function AppContent() {
           showToast('Admin Authentication Required', 'Please log in with an Admin account.', 'error');
         }
       }
+
+      if (search.includes('premium') || hash.includes('premium') || path.includes('/premium')) {
+        setShowPremiumPage(true);
+      }
     };
 
-    checkAdminUrl();
-    window.addEventListener('popstate', checkAdminUrl);
-    window.addEventListener('hashchange', checkAdminUrl);
+    checkUrlRoutes();
+    window.addEventListener('popstate', checkUrlRoutes);
+    window.addEventListener('hashchange', checkUrlRoutes);
 
     // Keyboard shortcut (Ctrl+Shift+A / Cmd+Shift+A)
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -143,8 +149,8 @@ function AppContent() {
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      window.removeEventListener('popstate', checkAdminUrl);
-      window.removeEventListener('hashchange', checkAdminUrl);
+      window.removeEventListener('popstate', checkUrlRoutes);
+      window.removeEventListener('hashchange', checkUrlRoutes);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isAdmin]);
@@ -156,7 +162,7 @@ function AppContent() {
 
   // Reset infinite scroll count when search or category filter changes
   useEffect(() => {
-    setVisibleCount(6);
+    setVisibleCount(16);
   }, [searchQuery, selectedCategory]);
 
   // Scroll to top only when selecting a category
@@ -270,26 +276,6 @@ function AppContent() {
     // Default 'latest': sorted by createdAt desc
     return sortPostsByCreatedAtDesc(result);
   }, [publishedPosts, selectedCategory, searchQuery, activeTab, isPostInCategory]);
-
-  // Infinite scroll trigger
-  useEffect(() => {
-    const target = observerRef.current;
-    if (!target) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setVisibleCount((prev) => Math.min(prev + 6, filteredPosts.length));
-        }
-      },
-      { threshold: 0.1, rootMargin: '250px' }
-    );
-
-    observer.observe(target);
-    return () => {
-      if (target) observer.unobserve(target);
-    };
-  }, [filteredPosts.length]);
 
   const visiblePosts = useMemo(() => filteredPosts.slice(0, visibleCount), [filteredPosts, visibleCount]);
   const hasMore = visibleCount < filteredPosts.length;
@@ -525,6 +511,34 @@ function AppContent() {
     );
   }
 
+  // Full-Page Dedicated Premium Screen
+  if (showPremiumPage) {
+    return (
+      <>
+        <PremiumPage
+          onClose={() => {
+            setShowPremiumPage(false);
+            if (window.location.hash === '#premium' || window.location.search.includes('premium') || window.location.pathname.includes('/premium')) {
+              window.history.pushState({}, '', window.location.pathname);
+            }
+          }}
+          onOpenPageModal={(page) => {
+            setActivePageModal(page);
+          }}
+        />
+        <PageModal
+          page={activePageModal}
+          onClose={() => setActivePageModal(null)}
+          onOpenPage={(p) => setActivePageModal(p)}
+          onOpenPremium={() => {
+            setActivePageModal(null);
+            setShowPremiumPage(true);
+          }}
+        />
+      </>
+    );
+  }
+
   // Maintenance Mode Check
   if (featureControls.maintenanceMode && !isAdmin) {
     return (
@@ -604,6 +618,7 @@ function AppContent() {
                 showToast('Admin Authentication Required', 'Please log in with an Admin account.', 'error');
               }
             }}
+            onOpenPremiumPage={() => setShowPremiumPage(true)}
           />
         )}
 
@@ -727,27 +742,13 @@ function AppContent() {
             {/* Grid Layout: 2 Mobile, 3 Tablet, 4 Desktop */}
             {filteredPosts.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 sm:gap-8 items-start">
-                {visiblePosts.map((post, idx) => {
-                  const showAdAfter =
-                    monetizationSettings.positions.betweenPosts &&
-                    monetizationSettings.adFrequency > 0 &&
-                    (idx + 1) % monetizationSettings.adFrequency === 0;
-
-                  return (
-                    <React.Fragment key={post.id}>
-                      <PromptCard
-                        post={post}
-                        onOpenModal={handleOpenPromptModal}
-                      />
-
-                      {showAdAfter && (
-                        <div className="col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-4 my-4">
-                          <AdBanner position="betweenPosts" settings={monetizationSettings} />
-                        </div>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                {visiblePosts.map((post) => (
+                  <PromptCard
+                    key={post.id}
+                    post={post}
+                    onOpenModal={handleOpenPromptModal}
+                  />
+                ))}
               </div>
             ) : (
               /* Empty Search State */
@@ -774,15 +775,23 @@ function AppContent() {
             )}
 
             {/* Load More Posts Button */}
-            {featureControls.loadMoreButton && hasMore && (
-              <div ref={observerRef} className="pt-12 pb-4 text-center">
+            {featureControls.loadMoreButton !== false && hasMore && (
+              <div className="pt-10 pb-4 text-center">
                 <button
-                  onClick={() => setVisibleCount((prev) => Math.min(prev + 6, filteredPosts.length))}
+                  type="button"
+                  onClick={() => setVisibleCount((prev) => Math.min(prev + 16, filteredPosts.length))}
                   className="px-8 py-3.5 rounded-full bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 text-white dark:text-zinc-900 font-bold text-sm shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all inline-flex items-center gap-2 group cursor-pointer"
                 >
                   <span>Load More Prompts</span>
                   <ChevronDown className="w-4 h-4 group-hover:translate-y-0.5 transition-transform duration-200" />
                 </button>
+              </div>
+            )}
+            {!hasMore && filteredPosts.length > 0 && (
+              <div className="pt-8 pb-4 text-center">
+                <p className="text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400">
+                  ✨ You've viewed all {filteredPosts.length} prompts
+                </p>
               </div>
             )}
             </div>
@@ -809,7 +818,10 @@ function AppContent() {
 
         {/* 6. Footer with Page Modal Trigger */}
         {featureControls.footer && websiteSections.footer !== false && (
-          <Footer onOpenPage={(page) => setActivePageModal(page)} />
+          <Footer
+            onOpenPage={(page) => setActivePageModal(page)}
+            onOpenPremium={() => setShowPremiumPage(true)}
+          />
         )}
       </div>
 
@@ -854,7 +866,15 @@ function AppContent() {
       />
 
       {/* Policy & Custom Page View Modal */}
-      <PageModal page={activePageModal} onClose={() => setActivePageModal(null)} />
+      <PageModal
+        page={activePageModal}
+        onClose={() => setActivePageModal(null)}
+        onOpenPage={(p) => setActivePageModal(p)}
+        onOpenPremium={() => {
+          setActivePageModal(null);
+          setShowPremiumPage(true);
+        }}
+      />
 
       {/* Firebase Login / Register Modal */}
       <LoginModal

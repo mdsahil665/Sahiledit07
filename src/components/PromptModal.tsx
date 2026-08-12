@@ -711,14 +711,14 @@ export const PromptModal: React.FC<PromptModalProps> = ({
             </div>
 
             {/* SECTION 3: SHARE */}
-            {fc.socialShareButtons !== false && (
-              fc.facebookToggle !== false ||
-              fc.twitterToggle !== false ||
-              fc.threadsToggle !== false ||
-              fc.pinterestToggle !== false ||
-              fc.whatsappToggle !== false ||
-              fc.telegramToggle !== false ||
-              fc.copyLinkToggle !== false
+            {fc.postShareEnabled !== false && fc.socialShareButtons !== false && (
+              (fc.shareFacebookToggle !== false || fc.facebookToggle !== false) ||
+              (fc.shareTwitterToggle !== false || fc.twitterToggle !== false) ||
+              (fc.shareThreadsToggle !== false || fc.threadsToggle !== false) ||
+              (fc.sharePinterestToggle !== false || fc.pinterestToggle !== false) ||
+              (fc.shareWhatsappToggle !== false || fc.whatsappToggle !== false) ||
+              (fc.shareTelegramToggle !== false || fc.telegramToggle !== false) ||
+              (fc.shareCopyLinkToggle !== false || fc.copyLinkToggle !== false)
             ) && (
               <div className="rounded-[28px] bg-white dark:bg-zinc-850 p-6 sm:p-8 border border-zinc-200 dark:border-zinc-800 shadow-sm space-y-5 sm:space-y-6">
                 <div className="flex items-center gap-3">
@@ -729,7 +729,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3 sm:gap-3.5">
-                  {fc.facebookToggle !== false && (
+                  {fc.shareFacebookToggle !== false && fc.facebookToggle !== false && (
                     <a
                       href={shareLinks.facebook}
                       target="_blank"
@@ -742,7 +742,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                     </a>
                   )}
 
-                  {fc.twitterToggle !== false && (
+                  {fc.shareTwitterToggle !== false && fc.twitterToggle !== false && (
                     <a
                       href={shareLinks.twitter}
                       target="_blank"
@@ -755,7 +755,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                     </a>
                   )}
 
-                  {fc.threadsToggle !== false && (
+                  {fc.shareThreadsToggle !== false && fc.threadsToggle !== false && (
                     <a
                       href={shareLinks.threads}
                       target="_blank"
@@ -768,7 +768,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                     </a>
                   )}
 
-                  {fc.pinterestToggle !== false && (
+                  {fc.sharePinterestToggle !== false && fc.pinterestToggle !== false && (
                     <a
                       href={shareLinks.pinterest}
                       target="_blank"
@@ -781,7 +781,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                     </a>
                   )}
 
-                  {fc.whatsappToggle !== false && (
+                  {fc.shareWhatsappToggle !== false && fc.whatsappToggle !== false && (
                     <a
                       href={shareLinks.whatsapp}
                       target="_blank"
@@ -794,7 +794,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                     </a>
                   )}
 
-                  {fc.telegramToggle !== false && (
+                  {fc.shareTelegramToggle !== false && fc.telegramToggle !== false && (
                     <a
                       href={shareLinks.telegram}
                       target="_blank"
@@ -807,7 +807,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                     </a>
                   )}
 
-                  {fc.copyLinkToggle !== false && (
+                  {fc.shareCopyLinkToggle !== false && fc.copyLinkToggle !== false && (
                     <button
                       type="button"
                       onClick={handleCopyLink}

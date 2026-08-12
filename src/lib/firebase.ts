@@ -70,7 +70,11 @@ export async function testConnection() {
   try {
     return await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (err: any) {
-    console.warn('Firestore test connection notice:', err?.message || err);
+    if (err?.code === 'unavailable' || err?.message?.includes('Could not reach Cloud Firestore') || err?.message?.includes('offline')) {
+      console.info('Firestore client operating in resilient offline/cache mode.');
+    } else {
+      console.warn('Firestore test connection notice:', err?.message || err);
+    }
   }
 }
 testConnection();

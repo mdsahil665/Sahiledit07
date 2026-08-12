@@ -46,13 +46,15 @@ interface FeatureItem {
 }
 
 const ALL_FEATURES: FeatureItem[] = [
-  // SHARE SETTINGS
-  { key: 'facebookToggle', label: 'Facebook Share', description: 'Enable or disable Facebook button in Share section.', category: 'SHARE SETTINGS' },
-  { key: 'twitterToggle', label: 'Twitter / X Share', description: 'Enable or disable Twitter / X button in Share section.', category: 'SHARE SETTINGS' },
-  { key: 'threadsToggle', label: 'Threads Share', description: 'Enable or disable Threads button in Share section.', category: 'SHARE SETTINGS' },
-  { key: 'pinterestToggle', label: 'Pinterest Share', description: 'Enable or disable Pinterest button in Share section.', category: 'SHARE SETTINGS' },
-  { key: 'whatsappToggle', label: 'WhatsApp Share', description: 'Enable or disable WhatsApp button in Share section.', category: 'SHARE SETTINGS' },
-  { key: 'copyLinkToggle', label: 'Copy Link Share', description: 'Enable or disable Copy Link button in Share section.', category: 'SHARE SETTINGS' },
+  // SHARE SETTINGS (POST DETAIL ONLY)
+  { key: 'postShareEnabled', label: 'Master Post Share Switch', description: 'Master switch to show or hide the Share section in opened post details.', category: 'SHARE SETTINGS' },
+  { key: 'shareFacebookToggle', label: 'Facebook Share', description: 'Enable or disable Facebook button in post share section.', category: 'SHARE SETTINGS' },
+  { key: 'shareTwitterToggle', label: 'Twitter / X Share', description: 'Enable or disable Twitter / X button in post share section.', category: 'SHARE SETTINGS' },
+  { key: 'shareThreadsToggle', label: 'Threads Share', description: 'Enable or disable Threads button in post share section.', category: 'SHARE SETTINGS' },
+  { key: 'sharePinterestToggle', label: 'Pinterest Share', description: 'Enable or disable Pinterest button in post share section.', category: 'SHARE SETTINGS' },
+  { key: 'shareWhatsappToggle', label: 'WhatsApp Share', description: 'Enable or disable WhatsApp button in post share section.', category: 'SHARE SETTINGS' },
+  { key: 'shareTelegramToggle', label: 'Telegram Share', description: 'Enable or disable Telegram button in post share section.', category: 'SHARE SETTINGS' },
+  { key: 'shareCopyLinkToggle', label: 'Copy Link Share', description: 'Enable or disable Copy Link button in post share section.', category: 'SHARE SETTINGS' },
 
   // GENERAL
   { key: 'maintenanceMode', label: 'Website Maintenance Mode', description: 'Restricts public access and displays maintenance screen to non-admin visitors.', category: 'GENERAL' },
@@ -79,17 +81,16 @@ const ALL_FEATURES: FeatureItem[] = [
   { key: 'favorites', label: 'Favorites', description: 'Enables bookmarking/saving favorite prompts to local profile.', category: 'GENERAL' },
   { key: 'notifications', label: 'Notifications', description: 'Enables system notification bell and dropdown center in header.', category: 'GENERAL' },
 
-  // SOCIAL MEDIA
-  { key: 'socialShareButtons', label: 'Prompt Share Buttons', description: 'Master switch to enable or disable social sharing buttons in prompt modal.', category: 'SOCIAL MEDIA' },
-  { key: 'footerSocialLinks', label: 'Footer Social Links', description: 'Master switch to enable or disable social icons in the footer.', category: 'SOCIAL MEDIA' },
-  { key: 'instagramToggle', label: 'Instagram Integration', description: 'Enable or disable Instagram link in footer and share modal.', category: 'SOCIAL MEDIA' },
-  { key: 'facebookToggle', label: 'Facebook Integration', description: 'Enable or disable Facebook link in footer and share modal.', category: 'SOCIAL MEDIA' },
-  { key: 'twitterToggle', label: 'X (Twitter) Integration', description: 'Enable or disable X / Twitter link in footer and share modal.', category: 'SOCIAL MEDIA' },
-  { key: 'whatsappToggle', label: 'WhatsApp Integration', description: 'Enable or disable WhatsApp link in footer and share modal.', category: 'SOCIAL MEDIA' },
-  { key: 'telegramToggle', label: 'Telegram Integration', description: 'Enable or disable Telegram link in footer and share modal.', category: 'SOCIAL MEDIA' },
-  { key: 'youtubeToggle', label: 'YouTube Integration', description: 'Enable or disable YouTube channel link in footer.', category: 'SOCIAL MEDIA' },
-  { key: 'githubToggle', label: 'GitHub Integration', description: 'Enable or disable GitHub profile link in footer.', category: 'SOCIAL MEDIA' },
-  { key: 'discordToggle', label: 'Discord Integration', description: 'Enable or disable Discord server link in footer.', category: 'SOCIAL MEDIA' },
+  // SOCIAL MEDIA (FOOTER & CONTACT PROFILE LINKS)
+  { key: 'footerSocialLinks', label: 'Footer Social Links Switch', description: 'Master switch to show or hide profile social icons in footer and contact sections.', category: 'SOCIAL MEDIA' },
+  { key: 'footerInstagramToggle', label: 'Instagram Profile Link', description: 'Enable or disable Instagram profile link in footer.', category: 'SOCIAL MEDIA' },
+  { key: 'footerFacebookToggle', label: 'Facebook Profile Link', description: 'Enable or disable Facebook page link in footer.', category: 'SOCIAL MEDIA' },
+  { key: 'footerTwitterToggle', label: 'X (Twitter) Profile Link', description: 'Enable or disable X / Twitter handle in footer.', category: 'SOCIAL MEDIA' },
+  { key: 'footerWhatsappToggle', label: 'WhatsApp Direct Chat Link', description: 'Enable or disable WhatsApp direct chat link in footer.', category: 'SOCIAL MEDIA' },
+  { key: 'footerTelegramToggle', label: 'Telegram Channel Link', description: 'Enable or disable Telegram channel link in footer.', category: 'SOCIAL MEDIA' },
+  { key: 'footerYoutubeToggle', label: 'YouTube Channel Link', description: 'Enable or disable YouTube channel link in footer.', category: 'SOCIAL MEDIA' },
+  { key: 'footerGithubToggle', label: 'GitHub Profile Link', description: 'Enable or disable GitHub profile link in footer.', category: 'SOCIAL MEDIA' },
+  { key: 'footerDiscordToggle', label: 'Discord Server Link', description: 'Enable or disable Discord server invite link in footer.', category: 'SOCIAL MEDIA' },
 
   // POST FEATURES
   { key: 'imageUpload', label: 'Image Upload', description: 'Allows uploading local file images when creating or editing posts.', category: 'POST FEATURES' },

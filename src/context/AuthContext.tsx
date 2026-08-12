@@ -7,7 +7,8 @@ import {
   signOut,
   onAuthStateChanged,
 } from 'firebase/auth';
-import { auth, signInWithGoogle, syncUserToFirestore, getRedirectResult, ADMIN_EMAIL } from '../lib/firebase';
+import { auth, db, signInWithGoogle, syncUserToFirestore, getRedirectResult, ADMIN_EMAIL } from '../lib/firebase';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { promptStore } from '../services/promptStore';
 
 export { ADMIN_EMAIL };
@@ -16,6 +17,7 @@ interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
   isAdmin: boolean;
+  isPremium: boolean;
   favorites: string[];
   loginWithEmail: (e: string, p: string) => Promise<User>;
   registerWithEmail: (e: string, p: string) => Promise<User>;
@@ -24,6 +26,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   toggleFavorite: (postId: string) => void;
   isFavorite: (postId: string) => boolean;
+  updateUserPremiumStatus: (uid: string, status: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,6 +35,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('sahil_prompt_favorites');
@@ -47,6 +51,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const adminCheck = userEmail === ADMIN_EMAIL.toLowerCase() || promptStore.isAdminLoggedIn();
     return adminCheck;
   };
+
+  // Real-time listener for current user's profile document to sync isPremium and role
+  useEffect(() => {
+    if (!currentUser?.uid) {
+      setIsPremium(false);
+      return;
+    }
+
+    const userRef = doc(db, 'users', currentUser.uid);
+    const unsub = onSnapshot(
+      userRef,
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setIsPremium(Boolean(data?.isPremium));
+        } else {
+          setIsPremium(false);
+        }
+      },
+      (err) => {
+        console.warn('User profile realtime sync notice:', err);
+      }
+    );
+
+    return () => unsub();
+  }, [currentUser?.uid]);
 
   useEffect(() => {
     // Check for pending redirect sign-in results
@@ -74,12 +104,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         const isPasscodeAdmin = promptStore.isAdminLoggedIn();
         setIsAdmin(isPasscodeAdmin);
+        setIsPremium(false);
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
+
+  const updateUserPremiumStatus = async (uid: string, status: boolean) => {
+    try {
+      const targetRef = doc(db, 'users', uid);
+      await setDoc(targetRef, { isPremium: status, updatedAt: new Date().toISOString() }, { merge: true });
+      if (currentUser?.uid === uid) {
+        setIsPremium(status);
+      }
+    } catch (e) {
+      console.error('Failed to update user premium status:', e);
+      throw e;
+    }
+  };
 
   const loginWithEmail = async (email: string, pass: string): Promise<User> => {
     const res = await signInWithEmailAndPassword(auth, email, pass);
@@ -126,6 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await signOut(auth);
     promptStore.setAdminLoggedIn(false);
     setIsAdmin(false);
+    setIsPremium(false);
     setCurrentUser(null);
   };
 
@@ -145,6 +190,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser,
         loading,
         isAdmin,
+        isPremium,
         favorites,
         loginWithEmail,
         registerWithEmail,
@@ -153,12 +199,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         toggleFavorite,
         isFavorite,
+        updateUserPremiumStatus,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
+
 
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);

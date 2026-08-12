@@ -21,6 +21,8 @@ import {
   DEFAULT_WEBSITE_SECTIONS,
   PostCardConfig,
   DEFAULT_POST_CARD_CONFIG,
+  PremiumSettings,
+  DEFAULT_PREMIUM_SETTINGS,
 } from '../types';
 import { INITIAL_CATEGORIES, INITIAL_PROMPTS, INITIAL_PAGES } from '../data/initialData';
 import {
@@ -92,6 +94,7 @@ const STORAGE_KEYS = {
   FEATURE_CONTROLS: 'sahil_edits_feature_controls_v1',
   WEBSITE_SECTIONS: 'sahil_edits_website_sections_v1',
   POST_CARD_CONFIG: 'sahil_edits_post_card_config_v1',
+  PREMIUM_SETTINGS: 'sahil_edits_premium_settings_v1',
   LIKED_POSTS: 'sahil_edits_liked_posts_v1',
 };
 
@@ -252,6 +255,7 @@ class PromptStore {
   private featureControlsCache: FeatureControls = DEFAULT_FEATURE_CONTROLS;
   private websiteSectionsCache: WebsiteSectionsSettings = DEFAULT_WEBSITE_SECTIONS;
   private postCardConfigCache: PostCardConfig = DEFAULT_POST_CARD_CONFIG;
+  private premiumSettingsCache: PremiumSettings = DEFAULT_PREMIUM_SETTINGS;
   private commentsCache: CommentItem[] = [];
   private notificationsCache: NotificationItem[] = [
     {
@@ -330,6 +334,9 @@ class PromptStore {
 
       const storedCardCfg = localStorage.getItem(STORAGE_KEYS.POST_CARD_CONFIG);
       this.postCardConfigCache = storedCardCfg ? { ...DEFAULT_POST_CARD_CONFIG, ...JSON.parse(storedCardCfg) } : DEFAULT_POST_CARD_CONFIG;
+
+      const storedPremSet = localStorage.getItem(STORAGE_KEYS.PREMIUM_SETTINGS);
+      this.premiumSettingsCache = storedPremSet ? { ...DEFAULT_PREMIUM_SETTINGS, ...JSON.parse(storedPremSet) } : DEFAULT_PREMIUM_SETTINGS;
 
       const storedCmts = localStorage.getItem(STORAGE_KEYS.COMMENTS);
       this.commentsCache = storedCmts ? JSON.parse(storedCmts) : [];
@@ -451,6 +458,7 @@ class PromptStore {
           if (data.websiteSettings) this.websiteSettingsCache = data.websiteSettings;
           if (data.cloudinarySettings) this.cloudinarySettingsCache = data.cloudinarySettings;
           if (data.commentsSettings) this.commentsSettingsCache = data.commentsSettings;
+          if (data.premiumSettings) this.premiumSettingsCache = { ...DEFAULT_PREMIUM_SETTINGS, ...data.premiumSettings };
           if (data.featureControls) this.featureControlsCache = { ...DEFAULT_FEATURE_CONTROLS, ...data.featureControls };
           if (data.websiteSections) {
             this.websiteSectionsCache = {
@@ -634,6 +642,7 @@ class PromptStore {
       localStorage.setItem(STORAGE_KEYS.FEATURE_CONTROLS, JSON.stringify(this.featureControlsCache));
       localStorage.setItem(STORAGE_KEYS.WEBSITE_SECTIONS, JSON.stringify(this.websiteSectionsCache));
       localStorage.setItem(STORAGE_KEYS.POST_CARD_CONFIG, JSON.stringify(this.postCardConfigCache));
+      localStorage.setItem(STORAGE_KEYS.PREMIUM_SETTINGS, JSON.stringify(this.premiumSettingsCache));
       localStorage.setItem(STORAGE_KEYS.COMMENTS, JSON.stringify(this.commentsCache));
       localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(this.notificationsCache));
     } catch (e) {
@@ -1651,6 +1660,33 @@ class PromptStore {
     this.notificationsCache = [];
     this.saveLocalCache();
     this.notify();
+  }
+
+  // --- PREMIUM / SUBSCRIPTION SETTINGS ---
+  public getPremiumSettings(): PremiumSettings {
+    return { ...DEFAULT_PREMIUM_SETTINGS, ...(this.premiumSettingsCache || {}) };
+  }
+
+  public async updatePremiumSettings(updates: Partial<PremiumSettings>): Promise<void> {
+    this.premiumSettingsCache = {
+      ...DEFAULT_PREMIUM_SETTINGS,
+      ...this.premiumSettingsCache,
+      ...updates,
+    };
+    this.saveLocalCache();
+    this.notify();
+
+    try {
+      await setDoc(
+        doc(db, 'settings', 'global'),
+        { premiumSettings: this.premiumSettingsCache },
+        { merge: true }
+      );
+      await setDoc(doc(db, 'settings', 'premium'), this.premiumSettingsCache);
+      await this.logActivity('update_settings', 'Updated Premium / Subscription Settings');
+    } catch (e) {
+      console.warn('Firestore premium settings sync error', e);
+    }
   }
 
   // --- BACKUP & RESTORE SYSTEM ---

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { MonetizationSettings, AdPositions, AdNetworkId } from '../types';
 import { promptStore } from '../services/promptStore';
+import { useAuth } from '../context/AuthContext';
 import { Eye } from 'lucide-react';
 
 interface AdBannerProps {
@@ -35,7 +36,18 @@ const NETWORK_NAMES: Record<AdNetworkId, string> = {
 
 export const AdBanner: React.FC<AdBannerProps> = ({ position, settings, className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { isPremium } = useAuth();
   const fc = promptStore.getFeatureControls();
+  const premiumSettings = promptStore.getPremiumSettings();
+
+  // Premium User check: Premium users never see ads
+  if (isPremium) return null;
+
+  // Premium Admin Ads setting check: If Ads switch is explicitly OFF in Premium Settings, hide ads
+  if (premiumSettings.adsEnabled === false && !settings?.testMode) {
+    // Only show if test mode is enabled in monetization for previewing
+    if (!settings?.testMode) return null;
+  }
 
   // Feature Control Center Master & Position checks
   if (!fc.masterAdsSwitch) return null;

@@ -298,8 +298,28 @@ export interface FeatureControls {
   favorites: boolean;
   notifications: boolean;
 
-  // SOCIAL MEDIA
+  // POST SHARE CONTROLS (Post Detail Modal Only)
+  postShareEnabled: boolean;
+  shareFacebookToggle: boolean;
+  shareTwitterToggle: boolean;
+  shareThreadsToggle: boolean;
+  sharePinterestToggle: boolean;
+  shareWhatsappToggle: boolean;
+  shareTelegramToggle: boolean;
+  shareCopyLinkToggle: boolean;
+
+  // FOOTER / CONTACT SOCIAL LINKS (Profile Links Only)
   footerSocialLinks: boolean;
+  footerInstagramToggle: boolean;
+  footerFacebookToggle: boolean;
+  footerTwitterToggle: boolean;
+  footerTelegramToggle: boolean;
+  footerYoutubeToggle: boolean;
+  footerWhatsappToggle: boolean;
+  footerGithubToggle: boolean;
+  footerDiscordToggle: boolean;
+
+  // LEGACY ALIAS TOGGLES
   instagramToggle: boolean;
   facebookToggle: boolean;
   twitterToggle: boolean;
@@ -386,8 +406,28 @@ export const DEFAULT_FEATURE_CONTROLS: FeatureControls = {
   favorites: true,
   notifications: true,
 
-  // SOCIAL MEDIA
+  // POST SHARE CONTROLS (Post Detail Modal Only)
+  postShareEnabled: true,
+  shareFacebookToggle: true,
+  shareTwitterToggle: true,
+  shareThreadsToggle: true,
+  sharePinterestToggle: true,
+  shareWhatsappToggle: true,
+  shareTelegramToggle: true,
+  shareCopyLinkToggle: true,
+
+  // FOOTER / CONTACT SOCIAL LINKS (Profile Links Only)
   footerSocialLinks: true,
+  footerInstagramToggle: true,
+  footerFacebookToggle: true,
+  footerTwitterToggle: true,
+  footerTelegramToggle: true,
+  footerYoutubeToggle: true,
+  footerWhatsappToggle: true,
+  footerGithubToggle: true,
+  footerDiscordToggle: true,
+
+  // LEGACY ALIAS TOGGLES
   instagramToggle: true,
   facebookToggle: true,
   twitterToggle: true,
@@ -505,5 +545,42 @@ export const DEFAULT_WEBSITE_SECTIONS: WebsiteSectionsSettings = {
     categoryHeader: 'auto',
   },
 };
+
+// --- PREMIUM / SUBSCRIPTION SETTINGS ---
+export interface PremiumSettings {
+  enabled: boolean;
+  showCrownIcon: boolean;
+  premiumPageEnabled: boolean;
+  premiumPurchaseEnabled: boolean;
+  price: string;
+  planName: string;
+  planDescription: string;
+  buttonText: string;
+  headline: string;
+  subtitle: string;
+  benefits: string[];
+  adsEnabled: boolean;
+}
+
+export const DEFAULT_PREMIUM_SETTINGS: PremiumSettings = {
+  enabled: true,
+  showCrownIcon: true,
+  premiumPageEnabled: true,
+  premiumPurchaseEnabled: true,
+  price: '₹99',
+  planName: 'PREMIUM',
+  planDescription: 'Pay once, keep it for life — no subscription, no renewals.',
+  buttonText: 'Get Lifetime Access — ₹99',
+  headline: 'Go ad-free. Forever.',
+  subtitle: 'Sahil Edits Premium — one payment, yours for life. Zero ads and every premium prompt unlocked. No subscription, ever.',
+  benefits: [
+    'Ads removed completely (No banners, no sticky bars, no watch-an-ad-to-unlock. The whole site stays clean — forever.)',
+    'Premium prompts unlocked (Full access to every premium prompt we release, current and future, the moment it drops.)',
+    'Save premium prompts',
+    'Access future premium features',
+  ],
+  adsEnabled: false,
+};
+
 
 

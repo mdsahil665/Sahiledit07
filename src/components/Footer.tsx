@@ -17,6 +17,7 @@ import {
   FileText,
   Info,
   Lock,
+  Crown,
 } from 'lucide-react';
 import { CustomPage } from '../types';
 import { promptStore } from '../services/promptStore';
@@ -26,6 +27,7 @@ import { useToast } from './Toast';
 
 interface FooterProps {
   onOpenPage: (page: CustomPage) => void;
+  onOpenPremium?: () => void;
 }
 
 // Custom X (Twitter) Icon
@@ -80,7 +82,7 @@ const formatSocialUrl = (url?: string, platform?: string) => {
   return `https://${trimmed}`;
 };
 
-export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
+export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage, onOpenPremium }) => {
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const { showToast } = useToast();
   const { logoUrl } = useLogo();
@@ -113,6 +115,10 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
 
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    const scrollContainers = document.querySelectorAll('.overflow-y-auto');
+    scrollContainers.forEach((el) => {
+      el.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   };
 
   // Helper function to open or create system page
@@ -149,7 +155,7 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
       rawUrl: social?.instagram,
       platform: 'instagram',
       icon: <Instagram className="w-5 h-5" />,
-      enabled: fc.instagramToggle !== false,
+      enabled: fc.footerInstagramToggle !== false,
     },
     {
       id: 'facebook',
@@ -157,7 +163,7 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
       rawUrl: social?.facebook,
       platform: 'facebook',
       icon: <Facebook className="w-5 h-5" />,
-      enabled: fc.facebookToggle !== false,
+      enabled: fc.footerFacebookToggle !== false,
     },
     {
       id: 'telegram',
@@ -165,7 +171,7 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
       rawUrl: social?.telegram,
       platform: 'telegram',
       icon: <TelegramIcon className="w-5 h-5" />,
-      enabled: fc.telegramToggle !== false,
+      enabled: fc.footerTelegramToggle !== false,
     },
     {
       id: 'discord',
@@ -173,7 +179,7 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
       rawUrl: social?.discord,
       platform: 'discord',
       icon: <DiscordIcon className="w-5 h-5" />,
-      enabled: fc.discordToggle !== false,
+      enabled: fc.footerDiscordToggle !== false,
     },
     {
       id: 'youtube',
@@ -181,7 +187,7 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
       rawUrl: social?.youtube,
       platform: 'youtube',
       icon: <Youtube className="w-5 h-5 text-red-500" />,
-      enabled: fc.youtubeToggle !== false,
+      enabled: fc.footerYoutubeToggle !== false,
     },
     {
       id: 'twitter',
@@ -189,7 +195,7 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
       rawUrl: social?.twitter,
       platform: 'twitter',
       icon: <XIcon className="w-5 h-5" />,
-      enabled: fc.twitterToggle !== false,
+      enabled: fc.footerTwitterToggle !== false,
     },
     {
       id: 'whatsapp',
@@ -197,7 +203,7 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
       rawUrl: social?.whatsapp,
       platform: 'whatsapp',
       icon: <MessageSquare className="w-5 h-5 text-emerald-400" />,
-      enabled: fc.whatsappToggle !== false,
+      enabled: fc.footerWhatsappToggle !== false,
     },
     {
       id: 'github',
@@ -205,7 +211,7 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
       rawUrl: social?.github,
       platform: 'github',
       icon: <Github className="w-5 h-5" />,
-      enabled: fc.githubToggle !== false,
+      enabled: fc.footerGithubToggle !== false,
     },
   ];
 
@@ -229,6 +235,20 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
 
   // Quick Links items formatted as glass cards
   const quickLinksList = [
+    {
+      title: 'Premium',
+      icon: Crown,
+      onClick: () => {
+        if (onOpenPremium) {
+          onOpenPremium();
+        } else {
+          const params = new URLSearchParams(window.location.search);
+          params.set('premium', 'true');
+          window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+          window.dispatchEvent(new Event('popstate'));
+        }
+      },
+    },
     {
       title: 'Explore Prompts',
       icon: Sparkles,
@@ -254,13 +274,13 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
         ),
     },
     {
-      title: 'Terms of Service',
+      title: 'Terms & Conditions',
       icon: FileText,
       onClick: () =>
         openOrCreatePage(
-          'Terms of Service',
-          'terms-of-service',
-          '## Terms of Service\n\nWelcome to Sahil Edits. By accessing our platform, you agree to use our AI prompt templates ethically and responsibly.'
+          'Terms & Conditions',
+          'terms-and-conditions',
+          '## Terms & Conditions\n\nWelcome to Sahil Edits. By accessing our platform, you agree to use our AI prompt templates ethically and responsibly.'
         ),
     },
     {
@@ -283,6 +303,26 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
           '## About Sahil Edits\n\nSahil Edits is the premier AI prompt library dedicated to helping creators, prompt engineers, and developers maximize their productivity.'
         ),
     },
+    {
+      title: 'AI Policy',
+      icon: ShieldCheck,
+      onClick: () =>
+        openOrCreatePage(
+          'AI Policy',
+          'ai-policy',
+          '## AI Ethical Policy\n\nAll AI prompts hosted on Sahil Edits adhere to safety, creativity, and privacy standards. Prompts are curated for ethical research, design, and content creation.'
+        ),
+    },
+    {
+      title: 'Disclaimer',
+      icon: Info,
+      onClick: () =>
+        openOrCreatePage(
+          'Disclaimer',
+          'disclaimer',
+          '## Disclaimer\n\nSahil Edits provides AI prompt templates for informational and creative purposes. Results generated by third-party AI models may vary.'
+        ),
+    },
   ];
 
   // Append dynamic published pages if any custom ones exist
@@ -302,30 +342,30 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
     <footer
       aria-label="Site Footer"
       style={{ minHeight: 'auto' }}
-      className={`w-full bg-[#F8FAFC] bg-gradient-to-b from-[#F1F5F9] via-[#F8FAFC] to-[#EEF2FF] text-slate-800 border-t border-slate-200/80 relative z-30 pt-12 sm:pt-16 ${
+      className={`w-full bg-[#F8FAFC] dark:bg-slate-950 bg-gradient-to-b from-[#F1F5F9] via-[#F8FAFC] to-[#EEF2FF] dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-800 dark:text-slate-100 border-t border-slate-200/80 dark:border-slate-800 relative z-30 pt-12 sm:pt-16 ${
         hasStickyBanner ? 'pb-24 sm:pb-16' : 'pb-12'
       } overflow-hidden transition-all duration-300`}
     >
       {/* Top Stylish Gradient Glow Accent Line & Ambient Curve Overlay */}
       <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-purple-400 via-indigo-400 to-transparent opacity-80 z-20" />
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-24 bg-gradient-to-r from-purple-300/20 via-indigo-300/20 to-blue-300/20 blur-2xl pointer-events-none rounded-full" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-24 bg-gradient-to-r from-purple-300/20 via-indigo-300/20 to-blue-300/20 dark:from-purple-600/10 dark:via-indigo-600/10 dark:to-blue-600/10 blur-2xl pointer-events-none rounded-full" />
 
       {/* Ambient Soft Background Glows */}
-      <div className="absolute top-0 left-1/4 w-72 h-72 sm:w-80 sm:h-80 bg-purple-300/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-10 right-1/4 w-72 h-72 sm:w-80 sm:h-80 bg-indigo-300/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-0 left-1/4 w-72 h-72 sm:w-80 sm:h-80 bg-purple-300/10 dark:bg-purple-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-10 right-1/4 w-72 h-72 sm:w-80 sm:h-80 bg-indigo-300/10 dark:bg-indigo-600/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col gap-10 sm:gap-12">
         {/* Optional Footer Ad Banner */}
         <AdBanner position="footerBanner" settings={monetizationSettings} />
 
         {/* 1. TOP BRAND SECTION */}
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 sm:gap-8 pb-8 border-b border-slate-200/80">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 sm:gap-8 pb-8 border-b border-slate-200/80 dark:border-slate-800/80">
           <div className="flex flex-col gap-3.5 max-w-2xl w-full">
             {/* Brand Logo & Title */}
             <div className="flex items-center gap-3.5">
               <div className="relative shrink-0">
                 <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-purple-500 via-indigo-500 to-blue-600 opacity-50 blur" />
-                <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-600 flex items-center justify-center text-white shadow-md border border-white/40 overflow-hidden p-0.5">
+                <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-600 flex items-center justify-center text-white shadow-md border border-white/40 dark:border-slate-700 overflow-hidden p-0.5">
                   {logoUrl ? (
                     <img src={logoUrl} alt="Footer Logo" className="w-full h-full object-cover rounded-xl" />
                   ) : (
@@ -334,17 +374,17 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
                 </div>
               </div>
               <div>
-                <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-slate-900">
+                <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
                   {websiteSettings.websiteName || 'Sahil Edits'}
                 </h2>
-                <p className="text-[11px] sm:text-xs font-bold tracking-widest text-purple-600 uppercase">
+                <p className="text-[11px] sm:text-xs font-bold tracking-widest text-purple-600 dark:text-purple-400 uppercase">
                   {websiteSettings.tagline || 'Premium AI Prompt Library'}
                 </p>
               </div>
             </div>
 
             {/* Description */}
-            <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-normal">
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-normal">
               Discover, copy, and master top-tier AI prompts for Gemini, ChatGPT, Midjourney, Bing &amp; more.
               Engineered for creators, developers, and digital innovators.
             </p>
@@ -372,7 +412,7 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
             <button
               onClick={scrollToTop}
               aria-label="Scroll back to top"
-              className="group flex items-center gap-2.5 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full bg-white border border-slate-200/80 hover:border-purple-300 text-slate-700 font-semibold text-xs shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 cursor-pointer"
+              className="group flex items-center gap-2.5 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-purple-300 dark:hover:border-purple-600 text-slate-700 dark:text-slate-200 font-semibold text-xs shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-0.5 cursor-pointer"
             >
               <span>Back to Top</span>
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-purple-600 via-indigo-600 to-blue-600 text-white flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:-rotate-6 transition-transform">
@@ -386,8 +426,8 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-start">
           {/* Quick Links Section (2-Column Grid of Glass Cards) - 6 cols */}
           <div className="lg:col-span-6 flex flex-col gap-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
-              <Layers className="w-4 h-4 text-purple-600" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-2">
+              <Layers className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               <span>Quick Navigation</span>
             </h3>
 
@@ -398,9 +438,9 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
                   <button
                     key={link.title}
                     onClick={link.onClick}
-                    className="group p-3 sm:p-3.5 rounded-2xl bg-white hover:bg-purple-50/70 border border-slate-200/80 hover:border-purple-300 flex items-center gap-2.5 sm:gap-3 text-[11px] sm:text-xs font-semibold text-slate-700 hover:text-purple-900 shadow-sm transition-all duration-200 hover:-translate-y-0.5 text-left cursor-pointer"
+                    className="group p-3 sm:p-3.5 rounded-2xl bg-white dark:bg-slate-900/80 hover:bg-purple-50/70 dark:hover:bg-purple-900/30 border border-slate-200/80 dark:border-slate-800/80 hover:border-purple-300 dark:hover:border-purple-600 flex items-center gap-2.5 sm:gap-3 text-[11px] sm:text-xs font-semibold text-slate-700 dark:text-slate-200 hover:text-purple-900 dark:hover:text-purple-300 shadow-sm transition-all duration-200 hover:-translate-y-0.5 text-left cursor-pointer"
                   >
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-100 group-hover:bg-purple-100 text-purple-600 flex items-center justify-center shrink-0 transition-colors">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-100 dark:bg-slate-800 group-hover:bg-purple-100 dark:group-hover:bg-purple-900/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 transition-colors">
                       <IconComponent className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </div>
                     <span className="truncate">{link.title}</span>
@@ -413,30 +453,30 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
           {/* Right Column: Newsletter & Social Section - 6 cols */}
           <div className="lg:col-span-6 flex flex-col gap-6">
             {/* Newsletter Subscription Card */}
-            <div className="p-5 sm:p-7 rounded-3xl bg-white/90 border border-slate-200/80 shadow-md relative overflow-hidden group">
-              <div className="absolute -right-10 -bottom-10 w-36 h-36 bg-purple-300/15 rounded-full blur-2xl group-hover:bg-purple-300/25 transition-all pointer-events-none" />
+            <div className="p-5 sm:p-7 rounded-3xl bg-white/90 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 shadow-md relative overflow-hidden group">
+              <div className="absolute -right-10 -bottom-10 w-36 h-36 bg-purple-300/15 dark:bg-purple-600/15 rounded-full blur-2xl group-hover:bg-purple-300/25 dark:group-hover:bg-purple-600/25 transition-all pointer-events-none" />
 
               <div className="relative z-10 flex flex-col gap-3.5">
                 <div className="flex flex-col gap-1">
-                  <h4 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-purple-600 shrink-0" />
+                  <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
                     <span>Join Our Prompt Newsletter</span>
                   </h4>
-                  <p className="text-xs text-slate-500 leading-normal">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-normal">
                     Get weekly high-converting AI prompts and editing tips delivered straight to your inbox.
                   </p>
                 </div>
 
                 <form onSubmit={handleSubscribe} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 mt-1">
                   <div className="relative w-full">
-                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
                     <input
                       type="email"
                       required
                       value={newsletterEmail}
                       onChange={(e) => setNewsletterEmail(e.target.value)}
                       placeholder="Enter your email address..."
-                      className="w-full pl-10 pr-4 py-2.5 sm:py-3 rounded-2xl bg-slate-50 border border-slate-200/80 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all"
+                      className="w-full pl-10 pr-4 py-2.5 sm:py-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-all"
                     />
                   </div>
                   <button
@@ -453,7 +493,7 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
             {/* Social Media Section (Directly below Newsletter) */}
             {activeSocialItems.length > 0 && (
               <div className="flex flex-col gap-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Connect With Us
                 </h3>
 
@@ -466,7 +506,7 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
                       rel="noopener noreferrer"
                       aria-label={item.label}
                       title={item.label}
-                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white border border-slate-200/80 text-slate-600 shadow-sm flex items-center justify-center transition-all duration-200 hover:scale-110 hover:text-purple-600 hover:border-purple-300 hover:bg-purple-50 cursor-pointer"
+                      className="w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-slate-600 dark:text-slate-300 shadow-sm flex items-center justify-center transition-all duration-200 hover:scale-110 hover:text-purple-600 dark:hover:text-purple-400 hover:border-purple-300 dark:hover:border-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/50 cursor-pointer"
                     >
                       {item.icon}
                     </a>
@@ -478,14 +518,14 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
         </div>
 
         {/* 3. BOTTOM BAR (Divider, Copyright, Policy Links) */}
-        <div className="pt-6 sm:pt-8 border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 font-medium">
+        <div className="pt-6 sm:pt-8 border-t border-slate-200/80 dark:border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400 font-medium">
           {/* Copyright */}
           <div className="text-center sm:text-left">
             {footerText}
           </div>
 
           {/* Policy Links */}
-          <div className="flex items-center gap-3 text-slate-600">
+          <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
             <button
               onClick={() =>
                 openOrCreatePage(
@@ -494,11 +534,11 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
                   '## Privacy Policy\n\nYour privacy is important to us. Sahil Edits does not sell or share personal user data. All prompt copying and interactions are encrypted and secured.'
                 )
               }
-              className="hover:text-purple-600 transition-colors cursor-pointer"
+              className="hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
             >
               Privacy
             </button>
-            <span className="text-slate-300">•</span>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
             <button
               onClick={() =>
                 openOrCreatePage(
@@ -507,11 +547,11 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
                   '## Terms of Service\n\nWelcome to Sahil Edits. By accessing our platform, you agree to use our AI prompt templates ethically and responsibly.'
                 )
               }
-              className="hover:text-purple-600 transition-colors cursor-pointer"
+              className="hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
             >
               Terms
             </button>
-            <span className="text-slate-300">•</span>
+            <span className="text-slate-300 dark:text-slate-700">•</span>
             <button
               onClick={() =>
                 openOrCreatePage(
@@ -520,7 +560,7 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage }) => {
                   '## Contact Us\n\nHave questions or custom prompt requests? Reach out to us at support@sahiledits.com or connect via our social channels.'
                 )
               }
-              className="hover:text-purple-600 transition-colors cursor-pointer"
+              className="hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer"
             >
               Contact
             </button>

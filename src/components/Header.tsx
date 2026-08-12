@@ -5,6 +5,7 @@ import { CategoryIcon } from './CategoryIcon';
 import { useAuth } from '../context/AuthContext';
 import { promptStore } from '../services/promptStore';
 import { useLogo } from '../context/LogoContext';
+import { useToast } from './Toast';
 import {
   Search,
   Sun,
@@ -34,6 +35,7 @@ interface HeaderProps {
   onOpenLogin: () => void;
   onOpenProfile: () => void;
   onOpenAdminDashboard: () => void;
+  onOpenPremiumPage: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -46,14 +48,17 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenLogin,
   onOpenProfile,
   onOpenAdminDashboard,
+  onOpenPremiumPage,
 }) => {
   const { theme, toggleTheme } = useTheme();
   const { currentUser, isAdmin, logout } = useAuth();
+  const { showToast } = useToast();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const [fc, setFc] = useState(() => promptStore.getFeatureControls());
   const [websiteSettings, setWebsiteSettings] = useState(() => promptStore.getWebsiteSettings());
+  const [premiumSettings, setPremiumSettings] = useState(() => promptStore.getPremiumSettings());
   const { logoUrl } = useLogo();
 
   useEffect(() => {
@@ -65,6 +70,7 @@ export const Header: React.FC<HeaderProps> = ({
     const unsubscribe = promptStore.subscribe(() => {
       setFc(promptStore.getFeatureControls());
       setWebsiteSettings(promptStore.getWebsiteSettings());
+      setPremiumSettings(promptStore.getPremiumSettings());
     });
 
     return () => {
@@ -72,6 +78,15 @@ export const Header: React.FC<HeaderProps> = ({
       unsubscribe();
     };
   }, []);
+
+  const handleCrownClick = () => {
+    const prem = promptStore.getPremiumSettings();
+    if (!prem.enabled || !prem.premiumPageEnabled) {
+      showToast('Premium Status', 'Premium is currently unavailable.', 'info');
+      return;
+    }
+    onOpenPremiumPage();
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -147,22 +162,18 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* 3. Reference-Style Icon Action Buttons Right */}
           <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-            {/* Crown / Admin Icon Button */}
-            <button
-              type="button"
-              onClick={() => {
-                if (isAdmin) {
-                  onOpenAdminDashboard();
-                } else {
-                  onOpenLogin();
-                }
-              }}
-              aria-label="Admin/Premium"
-              title={isAdmin ? "Admin Dashboard" : "Premium Member"}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-blue-50 dark:bg-slate-800 border border-blue-100 dark:border-slate-700/80 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-slate-700 flex items-center justify-center transition-all duration-200 shadow-sm active:scale-95 cursor-pointer"
-            >
-              <Crown className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-            </button>
+            {/* Crown / Premium Icon Button */}
+            {premiumSettings.enabled !== false && premiumSettings.showCrownIcon !== false && (
+              <button
+                type="button"
+                onClick={handleCrownClick}
+                aria-label="Sahil Edits Premium"
+                title="Sahil Edits Premium"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-amber-500/20 via-purple-500/20 to-blue-500/20 border border-amber-500/30 text-amber-500 hover:scale-105 flex items-center justify-center transition-all duration-200 shadow-sm active:scale-95 cursor-pointer"
+              >
+                <Crown className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-400" />
+              </button>
+            )}
 
             {/* Smile / Profile Icon Button */}
             <button
