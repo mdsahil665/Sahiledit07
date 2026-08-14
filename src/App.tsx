@@ -293,19 +293,13 @@ function AppContent() {
       return post;
     });
 
-    const newUrl = `?prompt=${encodeURIComponent(post.id)}`;
+    const newUrl = `/post/${encodeURIComponent(post.id)}`;
     window.history.pushState({ modalOpen: true, postId: post.id }, '', newUrl);
   }, []);
 
   const handleClosePromptModal = useCallback(() => {
     setActivePromptModal(null);
-    const searchParams = new URLSearchParams(window.location.search);
-    searchParams.delete('prompt');
-    searchParams.delete('p');
-    searchParams.delete('post');
-    const remainingSearch = searchParams.toString() ? `?${searchParams.toString()}` : '';
-    const cleanUrl = `${window.location.pathname}${remainingSearch}`;
-    window.history.replaceState(null, '', cleanUrl || '/');
+    window.history.replaceState(null, '', '/');
 
     setTimeout(() => {
       window.scrollTo({ top: savedScrollPosition.current, behavior: 'auto' });
@@ -323,7 +317,7 @@ function AppContent() {
     if (pathname.startsWith('/post/')) {
       const parts = pathname.split('/post/');
       if (parts[1]) {
-        targetPromptId = parts[1].replace(/\/$/, '');
+        targetPromptId = parts[1].split('/')[0];
       }
     } else if (urlParams.has('prompt') || urlParams.has('post') || urlParams.has('p')) {
       targetPromptId = urlParams.get('prompt') || urlParams.get('post') || urlParams.get('p');
@@ -333,9 +327,6 @@ function AppContent() {
       const targetPost = promptStore.getPostById(targetPromptId);
       if (targetPost && targetPost.status === 'published') {
         setActivePromptModal(targetPost);
-      } else {
-        setActivePromptModal(null);
-        window.history.replaceState(null, '', '/');
       }
     } else {
       // Direct visit or refresh at "/" ALWAYS renders the Home Page
@@ -361,7 +352,7 @@ function AppContent() {
         setActivePageModal(foundPage);
       }
     }
-  }, []);
+  }, [posts]);
 
   // Handle popstate for browser Back/Forward navigation
   useEffect(() => {

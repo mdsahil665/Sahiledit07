@@ -9,7 +9,8 @@ import { useLogo } from '../context/LogoContext';
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: (isAdmin: boolean) => void;
+  onLoginSuccess?: (isAdmin: boolean) => void;
+  onSuccess?: () => void;
   initialMode?: 'login' | 'register';
 }
 
@@ -17,6 +18,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   isOpen,
   onClose,
   onLoginSuccess,
+  onSuccess,
   initialMode = 'login',
 }) => {
   const [mode, setMode] = useState<'login' | 'register' | 'reset'>(initialMode);
@@ -34,10 +36,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   useEffect(() => {
     if (currentUser && isOpen) {
       const isAdminUser = currentUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
-      onLoginSuccess(isAdminUser);
+      if (onLoginSuccess) {
+        onLoginSuccess(isAdminUser);
+      }
+      if (onSuccess) {
+        onSuccess();
+      }
       onClose();
     }
-  }, [currentUser, isOpen]);
+  }, [currentUser, isOpen, onLoginSuccess, onSuccess, onClose]);
 
   // Lock body scroll when modal is open
   useEffect(() => {

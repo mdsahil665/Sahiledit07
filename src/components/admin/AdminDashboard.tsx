@@ -87,6 +87,15 @@ import { UserManagementSection } from './UserManagementSection';
 import { SystemHealthSection } from './SystemHealthSection';
 import { EngagementSection } from './EngagementSection';
 import { SocialSettingsSection } from './SocialSettingsSection';
+import { AdminErrorBoundary } from './AdminErrorBoundary';
+import { FooterSettingsControl } from './FooterSettingsControl';
+import { CommentsModerationSection } from './CommentsModerationSection';
+import { MonetizationAdminSection } from './MonetizationAdminSection';
+import { PagesNavigationSection } from './PagesNavigationSection';
+import { SeoSettingsSection } from './SeoSettingsSection';
+import { CloudinaryAdminSection } from './CloudinaryAdminSection';
+import { SecurityAuthSection } from './SecurityAuthSection';
+import { ActivityLogsSection } from './ActivityLogsSection';
 
 interface AdminDashboardProps {
   posts: PromptPost[];
@@ -586,84 +595,204 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           )}
 
           {/* USERS MANAGEMENT */}
-          {(activeTab === 'users' || activeTab === 'premium_users') && <UserManagementSection />}
+          {(activeTab === 'users' || activeTab === 'premium_users') && (
+            <AdminErrorBoundary fallbackTitle="User Management">
+              <UserManagementSection />
+            </AdminErrorBoundary>
+          )}
 
           {/* ENGAGEMENT SECTIONS */}
-          {activeTab === 'likes' && <EngagementSection type="likes" posts={posts} onEditPost={onEditPost} />}
-          {activeTab === 'shares' && <EngagementSection type="shares" posts={posts} onEditPost={onEditPost} />}
-          {activeTab === 'views' && <EngagementSection type="views" posts={posts} onEditPost={onEditPost} />}
-          {activeTab === 'ratings' && <EngagementSection type="ratings" posts={posts} onEditPost={onEditPost} />}
+          {activeTab === 'likes' && (
+            <AdminErrorBoundary fallbackTitle="Likes Overview">
+              <EngagementSection type="likes" posts={posts} onEditPost={onEditPost} />
+            </AdminErrorBoundary>
+          )}
+          {activeTab === 'shares' && (
+            <AdminErrorBoundary fallbackTitle="Shares Analytics">
+              <EngagementSection type="shares" posts={posts} onEditPost={onEditPost} />
+            </AdminErrorBoundary>
+          )}
+          {activeTab === 'views' && (
+            <AdminErrorBoundary fallbackTitle="Views Analytics">
+              <EngagementSection type="views" posts={posts} onEditPost={onEditPost} />
+            </AdminErrorBoundary>
+          )}
+          {activeTab === 'ratings' && (
+            <AdminErrorBoundary fallbackTitle="Prompt Ratings">
+              <EngagementSection type="ratings" posts={posts} onEditPost={onEditPost} />
+            </AdminErrorBoundary>
+          )}
 
-          {/* SOCIAL MEDIA SETTINGS */}
-          {(activeTab === 'share' || activeTab === 'footer_social' || activeTab === 'contact_social') && (
-            <SocialSettingsSection type={activeTab} />
+          {/* COMMENTS MODERATION */}
+          {activeTab === 'comments' && (
+            <AdminErrorBoundary fallbackTitle="Comments Moderation">
+              <CommentsModerationSection />
+            </AdminErrorBoundary>
+          )}
+
+          {/* SOCIAL MEDIA & SHARE SETTINGS */}
+          {activeTab === 'share' && (
+            <AdminErrorBoundary fallbackTitle="Post Share Controls">
+              <SocialSettingsSection type="share" />
+            </AdminErrorBoundary>
+          )}
+          {activeTab === 'footer_social' && (
+            <AdminErrorBoundary fallbackTitle="Footer Social Links">
+              <SocialSettingsSection type="footer_social" />
+            </AdminErrorBoundary>
+          )}
+          {activeTab === 'contact_social' && (
+            <AdminErrorBoundary fallbackTitle="Contact Social Links">
+              <SocialSettingsSection type="contact_social" />
+            </AdminErrorBoundary>
+          )}
+
+          {/* ADS & MONETIZATION */}
+          {activeTab === 'monetization' && (
+            <AdminErrorBoundary fallbackTitle="Ads & Monetization">
+              <MonetizationAdminSection />
+            </AdminErrorBoundary>
           )}
 
           {/* SYSTEM HEALTH & FIREBASE */}
-          {activeTab === 'firebase' && <SystemHealthSection />}
+          {activeTab === 'firebase' && (
+            <AdminErrorBoundary fallbackTitle="Firebase & Storage">
+              <SystemHealthSection />
+            </AdminErrorBoundary>
+          )}
 
           {/* SUBSCRIPTION & PREMIUM */}
-          {activeTab === 'premium' && <PremiumAdminSection />}
+          {activeTab === 'premium' && (
+            <AdminErrorBoundary fallbackTitle="Subscription / Premium">
+              <PremiumAdminSection />
+            </AdminErrorBoundary>
+          )}
 
           {/* CATEGORIES MANAGEMENT */}
           {activeTab === 'categories' && (
-            <div className="space-y-6 animate-fade-in pb-12">
-              <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
-                <div>
-                  <h2 className="text-xl font-extrabold text-white flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-indigo-400" />
-                    <span>Categories Manager</span>
-                  </h2>
-                  <p className="text-xs text-zinc-400 mt-1">Organize your prompt library with custom categories and icons.</p>
+            <AdminErrorBoundary fallbackTitle="Categories Manager">
+              <div className="space-y-6 animate-fade-in pb-12">
+                <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
+                  <div>
+                    <h2 className="text-xl font-extrabold text-white flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-indigo-400" />
+                      <span>Categories Manager</span>
+                    </h2>
+                    <p className="text-xs text-zinc-400 mt-1">Organize your prompt library with custom categories and icons.</p>
+                  </div>
+
+                  <button
+                    onClick={onAddCategory}
+                    className="px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add New Category</span>
+                  </button>
                 </div>
 
-                <button
-                  onClick={onAddCategory}
-                  className="px-5 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-lg shadow-indigo-600/20 flex items-center gap-2 transition-all cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add New Category</span>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {categories.map((cat) => {
-                  const catPostsCount = posts.filter((p) => p.categoryId === cat.id).length;
-                  return (
-                    <div
-                      key={cat.id}
-                      className="p-5 rounded-3xl bg-zinc-900 border border-zinc-800 flex items-center justify-between space-y-0"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-sm border border-indigo-500/20">
-                          {cat.name[0]}
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-white text-sm">{cat.name}</h4>
-                          <p className="text-xs text-zinc-400">{catPostsCount} Prompts</p>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => onEditCategory(cat)}
-                        className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-                        title="Edit Category"
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {categories.map((cat) => {
+                    const catPostsCount = posts.filter((p) => p.categoryId === cat.id).length;
+                    return (
+                      <div
+                        key={cat.id}
+                        className="p-5 rounded-3xl bg-zinc-900 border border-zinc-800 flex items-center justify-between space-y-0"
                       >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                    </div>
-                  );
-                })}
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-sm border border-indigo-500/20">
+                            {cat.name[0]}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-white text-sm">{cat.name}</h4>
+                            <p className="text-xs text-zinc-400">{catPostsCount} Prompts</p>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => onEditCategory(cat)}
+                          className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors cursor-pointer"
+                          title="Edit Category"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            </AdminErrorBoundary>
+          )}
+
+          {/* HOMEPAGE & SECTIONS */}
+          {activeTab === 'sections' && (
+            <AdminErrorBoundary fallbackTitle="Homepage Settings">
+              <WebsiteSectionsControl />
+            </AdminErrorBoundary>
+          )}
+
+          {/* FOOTER SETTINGS */}
+          {activeTab === 'footer' && (
+            <AdminErrorBoundary fallbackTitle="Footer Settings">
+              <FooterSettingsControl />
+            </AdminErrorBoundary>
+          )}
+
+          {/* PAGES & NAVIGATION */}
+          {activeTab === 'pages' && (
+            <AdminErrorBoundary fallbackTitle="Pages & Navigation">
+              <PagesNavigationSection />
+            </AdminErrorBoundary>
+          )}
+
+          {/* SEO SETTINGS */}
+          {activeTab === 'seo' && (
+            <AdminErrorBoundary fallbackTitle="SEO Settings">
+              <SeoSettingsSection />
+            </AdminErrorBoundary>
+          )}
+
+          {/* CLOUDINARY MEDIA */}
+          {activeTab === 'cloudinary' && (
+            <AdminErrorBoundary fallbackTitle="Cloudinary Media">
+              <CloudinaryAdminSection />
+            </AdminErrorBoundary>
+          )}
+
+          {/* SECURITY & AUTH */}
+          {activeTab === 'security' && (
+            <AdminErrorBoundary fallbackTitle="Security & Auth">
+              <SecurityAuthSection />
+            </AdminErrorBoundary>
+          )}
+
+          {/* ACTIVITY & LOGS */}
+          {activeTab === 'activity' && (
+            <AdminErrorBoundary fallbackTitle="Activity & Logs">
+              <ActivityLogsSection />
+            </AdminErrorBoundary>
           )}
 
           {/* OTHER ADMIN SECTIONS */}
-          {activeTab === 'sections' && <WebsiteSectionsControl />}
-          {activeTab === 'postcard' && <PostCardAppearanceControl />}
-          {activeTab === 'logo' && <LogoManager />}
-          {activeTab === 'features' && <FeatureControlCenter />}
-          {activeTab === 'deployment' && <DeploymentGuide />}
+          {activeTab === 'postcard' && (
+            <AdminErrorBoundary fallbackTitle="Post Card Appearance">
+              <PostCardAppearanceControl />
+            </AdminErrorBoundary>
+          )}
+          {activeTab === 'logo' && (
+            <AdminErrorBoundary fallbackTitle="Logo & Branding">
+              <LogoManager />
+            </AdminErrorBoundary>
+          )}
+          {(activeTab === 'features' || activeTab === 'settings') && (
+            <AdminErrorBoundary fallbackTitle="Feature Controls">
+              <FeatureControlCenter />
+            </AdminErrorBoundary>
+          )}
+          {activeTab === 'deployment' && (
+            <AdminErrorBoundary fallbackTitle="Deployment Guide">
+              <DeploymentGuide />
+            </AdminErrorBoundary>
+          )}
         </main>
       </div>
 

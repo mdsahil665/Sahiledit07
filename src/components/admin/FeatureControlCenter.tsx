@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 
 interface FeatureControlCenterProps {
-  featureControls: FeatureControls;
+  featureControls?: FeatureControls;
 }
 
 interface FeatureItem {
@@ -151,11 +151,29 @@ const CATEGORY_ICONS = {
   ADVANCED: Cpu,
 };
 
-export const FeatureControlCenter: React.FC<FeatureControlCenterProps> = ({ featureControls }) => {
+export const FeatureControlCenter: React.FC<FeatureControlCenterProps> = ({ featureControls: propControls }) => {
+  const [internalControls, setInternalControls] = useState<FeatureControls>(() => propControls || promptStore.getFeatureControls());
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('ALL');
   const [isUpdating, setIsUpdating] = useState(false);
   const { showToast } = useToast();
+
+  React.useEffect(() => {
+    if (propControls) {
+      setInternalControls(propControls);
+    }
+  }, [propControls]);
+
+  React.useEffect(() => {
+    const unsub = promptStore.subscribe(() => {
+      if (!propControls) {
+        setInternalControls(promptStore.getFeatureControls());
+      }
+    });
+    return unsub;
+  }, [propControls]);
+
+  const featureControls = internalControls;
 
   const handleToggle = async (key: keyof FeatureControls) => {
     const newValue = !featureControls[key];

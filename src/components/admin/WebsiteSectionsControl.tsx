@@ -28,8 +28,8 @@ import {
 } from 'lucide-react';
 
 interface WebsiteSectionsControlProps {
-  websiteSections: WebsiteSectionsSettings;
-  categories: Category[];
+  websiteSections?: WebsiteSectionsSettings;
+  categories?: Category[];
 }
 
 interface SectionItem {
@@ -44,14 +44,39 @@ interface SectionItem {
 }
 
 export const WebsiteSectionsControl: React.FC<WebsiteSectionsControlProps> = ({
-  websiteSections,
-  categories,
+  websiteSections: propSections,
+  categories: propCategories,
 }) => {
+  const [internalSections, setInternalSections] = useState<WebsiteSectionsSettings>(() => propSections || promptStore.getWebsiteSections());
+  const [categoryList, setCategoryList] = useState<Category[]>(() => propCategories || promptStore.getCategories());
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTabFilter, setActiveTabFilter] = useState<'ALL' | 'HOME PAGE' | 'CATEGORY PAGES' | 'INDIVIDUAL CATEGORIES'>('ALL');
   const [isUpdating, setIsUpdating] = useState(false);
   const [editingSizeKey, setEditingSizeKey] = useState<'hero' | 'categoryHeader' | null>(null);
   const { showToast } = useToast();
+
+  React.useEffect(() => {
+    if (propSections) {
+      setInternalSections(propSections);
+    }
+  }, [propSections]);
+
+  React.useEffect(() => {
+    if (propCategories) {
+      setCategoryList(propCategories);
+    }
+  }, [propCategories]);
+
+  React.useEffect(() => {
+    const unsub = promptStore.subscribe(() => {
+      if (!propSections) setInternalSections(promptStore.getWebsiteSections());
+      if (!propCategories) setCategoryList(promptStore.getCategories());
+    });
+    return unsub;
+  }, [propSections, propCategories]);
+
+  const websiteSections = internalSections;
+  const categories = categoryList;
 
   const ALL_SECTIONS: SectionItem[] = [
     // HOME PAGE

@@ -56,6 +56,9 @@ export const DEFAULT_POST_CARD_CONFIG: PostCardConfig = {
   glassPanelVisible: true,
 };
 
+export type BadgeMode = 'automatic' | 'none' | 'manual';
+export type BadgeType = 'NEW' | 'AI PROMPT' | 'PHOTO PROMPT' | 'CREATIVE' | 'TRENDING' | 'HOT' | 'PREMIUM' | string;
+
 export interface PromptPost {
   id: string;
   title: string;
@@ -70,6 +73,11 @@ export interface PromptPost {
   views: number;
   copies: number;
   likes?: number;
+  shares?: number;
+  model?: string;
+  author?: string;
+  badgeMode?: BadgeMode;
+  badgeType?: BadgeType;
   cardConfig?: Partial<PostCardConfig>;
   featured: boolean;
   trending: boolean;
@@ -198,6 +206,7 @@ export interface SecuritySettings {
   sessionTimeoutMinutes: number;
   twoFactorEnabled: boolean;
   rateLimitMaxAttempts: number;
+  lockoutDurationMinutes?: number;
   autoLogoutOnInactivity: boolean;
 }
 
@@ -226,6 +235,7 @@ export interface WebsiteSettings {
   accentColor: string;
   darkModeDefault: boolean;
   socialLinks: SocialMediaLinks;
+  contactSocialLinks?: Partial<SocialMediaLinks>;
   contactEmail: string;
   contactPhone: string;
   contactAddress: string;

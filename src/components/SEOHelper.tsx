@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { PromptPost, Category, CustomPage } from '../types';
+import { getPostMainCoverImage } from '../lib/imageUtils';
 
 interface SEOHelperProps {
   activePrompt: PromptPost | null;
@@ -9,7 +10,7 @@ interface SEOHelperProps {
   isAdminView: boolean;
 }
 
-const BASE_URL = 'https://sahiledit.vercel.app';
+const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://sahiledit.vercel.app';
 const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
 
 export const SEOHelper: React.FC<SEOHelperProps> = ({
@@ -41,8 +42,8 @@ export const SEOHelper: React.FC<SEOHelperProps> = ({
         activePrompt.metaDescription ||
         activePrompt.shortDescription ||
         `Copy this high-precision AI prompt for ${activePrompt.categoryName || 'ChatGPT & Midjourney'}. 1-click copy on Sahil Edits.`;
-      canonical = `${BASE_URL}/?prompt=${encodeURIComponent(activePrompt.id)}`;
-      ogImage = activePrompt.imageUrl || DEFAULT_IMAGE;
+      canonical = `${BASE_URL}/post/${encodeURIComponent(activePrompt.id)}`;
+      ogImage = getPostMainCoverImage(activePrompt);
 
       jsonLdData = {
         '@context': 'https://schema.org',

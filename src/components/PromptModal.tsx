@@ -43,7 +43,8 @@ import {
   RatingStats,
   DEFAULT_RATING_STATS,
 } from '../services/ratingService';
-import { promptStore, getPostCreatedAtMillis } from '../services/promptStore';
+import { promptStore, getPostCreatedAtMillis, getPostGallery } from '../services/promptStore';
+import { getPostDisplayBadge } from '../services/badgeService';
 import { AdBanner } from './AdBanner';
 import { PromptCard } from './PromptCard';
 import { Footer } from './Footer';
@@ -134,29 +135,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
   const touchStartXRef = useRef<number | null>(null);
 
   const galleryImages: string[] = useMemo(() => {
-    if (!post) return [];
-
-    // 1. Primary multi-image array field
-    if (post.images && Array.isArray(post.images) && post.images.length > 0) {
-      const valid = post.images.filter((img): img is string => typeof img === 'string' && img.trim().length > 0);
-      if (valid.length > 0) return valid;
-    }
-
-    // 2. Secondary gallery field if present on document
-    if ((post as any).gallery && Array.isArray((post as any).gallery) && (post as any).gallery.length > 0) {
-      const valid = (post as any).gallery.filter((img: any): img is string => typeof img === 'string' && img.trim().length > 0);
-      if (valid.length > 0) return valid;
-    }
-
-    // 3. Single image fallback fields
-    if (post.imageUrl && typeof post.imageUrl === 'string' && post.imageUrl.trim().length > 0) {
-      return [post.imageUrl];
-    }
-    if ((post as any).image && typeof (post as any).image === 'string' && (post as any).image.trim().length > 0) {
-      return [(post as any).image];
-    }
-
-    return [];
+    return getPostGallery(post);
   }, [post]);
 
   useEffect(() => {
@@ -451,7 +430,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
     }, 2500);
   };
 
-  const postShareUrl = `${window.location.origin}${window.location.pathname}?prompt=${post.id}`;
+  const postShareUrl = `${window.location.origin}/post/${encodeURIComponent(post.id)}`;
   const shareTitle = encodeURIComponent(`Check out this AI Prompt: ${post.title} on Sahil Edits`);
 
   const shareLinks = {
@@ -519,8 +498,36 @@ export const PromptModal: React.FC<PromptModalProps> = ({
               <span>Back</span>
             </button>
 
-            {/* Right: Tool/Model Badge */}
-            <div className="flex items-center gap-2">
+            {/* Right: Tool/Model Badge & Smart Post Badge */}
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {(() => {
+                const badge = getPostDisplayBadge(post, allPosts);
+                if (!badge) return null;
+                const type = badge.badgeType;
+                return (
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold ${
+                      type === 'NEW'
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                        : type === 'PREMIUM'
+                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                        : type === 'PHOTO PROMPT'
+                        ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20'
+                        : type === 'CREATIVE'
+                        ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20'
+                        : type === 'TRENDING'
+                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                        : type === 'HOT'
+                        ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                        : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{badge.label}</span>
+                  </span>
+                );
+              })()}
+
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                 <CategoryIcon name={category?.icon || 'Sparkles'} className="w-3.5 h-3.5" />
                 <span>{modelOrToolName}</span>

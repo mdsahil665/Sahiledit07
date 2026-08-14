@@ -75,6 +75,34 @@ export function sortPostsByCreatedAtDesc(posts: PromptPost[]): PromptPost[] {
   return [...posts].sort((a, b) => getPostCreatedAtMillis(b) - getPostCreatedAtMillis(a));
 }
 
+export function getPostGallery(post: Partial<PromptPost> | null | undefined): string[] {
+  if (!post) return [];
+
+  // 1. Primary multi-image array field
+  if (post.images && Array.isArray(post.images) && post.images.length > 0) {
+    const valid = post.images.filter((img): img is string => typeof img === 'string' && img.trim().length > 0);
+    if (valid.length > 0) return valid;
+  }
+
+  // 2. Secondary gallery array field if present
+  if ((post as any).gallery && Array.isArray((post as any).gallery) && (post as any).gallery.length > 0) {
+    const valid = ((post as any).gallery as any[]).filter((img): img is string => typeof img === 'string' && img.trim().length > 0);
+    if (valid.length > 0) return valid;
+  }
+
+  // 3. Single imageUrl field
+  if (post.imageUrl && typeof post.imageUrl === 'string' && post.imageUrl.trim().length > 0) {
+    return [post.imageUrl.trim()];
+  }
+
+  // 4. Single legacy image field
+  if ((post as any).image && typeof (post as any).image === 'string' && (post as any).image.trim().length > 0) {
+    return [(post as any).image.trim()];
+  }
+
+  return [];
+}
+
 const STORAGE_KEYS = {
   POSTS: 'sahil_edits_posts_v1',
   CATEGORIES: 'sahil_edits_categories_v1',
@@ -389,19 +417,12 @@ class PromptStore {
                 ? existingInCache.likes
                 : 0;
 
-            const docImages =
-              data.images && Array.isArray(data.images) && data.images.length > 0
-                ? data.images
-                : data.gallery && Array.isArray(data.gallery) && data.gallery.length > 0
-                ? data.gallery
-                : data.imageUrl
-                ? [data.imageUrl]
-                : data.image
-                ? [data.image]
-                : [];
+            const docImages = getPostGallery(data);
+            const docCover = docImages[0] || data.imageUrl || (data as any).image || '';
 
             postsList.push({
               ...data,
+              imageUrl: docCover,
               images: docImages,
               gallery: docImages,
               id: docId,
@@ -743,17 +764,12 @@ class PromptStore {
       }
     }
 
-    const finalImages: string[] =
-      postData.images && Array.isArray(postData.images) && postData.images.length > 0
-        ? postData.images
-        : (postData as any).gallery && Array.isArray((postData as any).gallery) && (postData as any).gallery.length > 0
-        ? (postData as any).gallery
-        : postData.imageUrl
-        ? [postData.imageUrl]
-        : [];
+    const finalImages: string[] = getPostGallery(postData);
+    const coverUrl = finalImages[0] || postData.imageUrl || '';
 
     const newPost: PromptPost = {
       ...postData,
+      imageUrl: coverUrl,
       images: finalImages,
       gallery: finalImages,
       featured: Boolean(postData.featured),
@@ -839,27 +855,26 @@ class PromptStore {
     const { createdAt: _ignoreCreatedAt, id: _ignoreId, views: _ignoreViews, copies: _ignoreCopies, ...cleanUpdates } = updates;
 
     // Synchronize images and gallery arrays strictly
-    const finalImages: string[] =
-      cleanUpdates.images && Array.isArray(cleanUpdates.images) && cleanUpdates.images.length > 0
-        ? cleanUpdates.images
-        : (cleanUpdates as any).gallery && Array.isArray((cleanUpdates as any).gallery) && (cleanUpdates as any).gallery.length > 0
-        ? (cleanUpdates as any).gallery
-        : cleanUpdates.imageUrl
-        ? [cleanUpdates.imageUrl]
-        : existingPost.images && Array.isArray(existingPost.images) && existingPost.images.length > 0
-        ? existingPost.images
-        : (existingPost as any).gallery && Array.isArray((existingPost as any).gallery) && (existingPost as any).gallery.length > 0
-        ? (existingPost as any).gallery
-        : existingPost.imageUrl
-        ? [existingPost.imageUrl]
-        : [];
+    let finalImages: string[];
+    if (cleanUpdates.images !== undefined && Array.isArray(cleanUpdates.images)) {
+      finalImages = cleanUpdates.images.filter(Boolean);
+    } else if ((cleanUpdates as any).gallery !== undefined && Array.isArray((cleanUpdates as any).gallery)) {
+      finalImages = ((cleanUpdates as any).gallery as any[]).filter(Boolean);
+    } else if (cleanUpdates.imageUrl !== undefined) {
+      finalImages = cleanUpdates.imageUrl ? [cleanUpdates.imageUrl] : [];
+    } else {
+      finalImages = getPostGallery(existingPost);
+    }
 
+    const coverUrl = finalImages[0] || cleanUpdates.imageUrl || existingPost.imageUrl || '';
     cleanUpdates.images = finalImages;
     (cleanUpdates as any).gallery = finalImages;
+    cleanUpdates.imageUrl = coverUrl;
 
     const updatedPost: PromptPost = {
       ...existingPost,
       ...cleanUpdates,
+      imageUrl: coverUrl,
       images: finalImages,
       gallery: finalImages,
       id: existingPost.id, // Strictly preserve original ID
@@ -888,14 +903,12 @@ class PromptStore {
       if (cleanUpdates.fullPrompt !== undefined) updateDataForFirestore.fullPrompt = cleanUpdates.fullPrompt;
       if (cleanUpdates.categoryId !== undefined) updateDataForFirestore.categoryId = cleanUpdates.categoryId;
       if (cleanUpdates.tags !== undefined) updateDataForFirestore.tags = cleanUpdates.tags;
-      if (cleanUpdates.imageUrl !== undefined) {
-        let finalImg = cleanUpdates.imageUrl;
+      if (cleanUpdates.imageUrl !== undefined || cleanUpdates.images !== undefined || (cleanUpdates as any).gallery !== undefined) {
+        let finalImg = coverUrl;
         if (finalImg.startsWith('data:image/') && finalImg.length > 500000) {
           finalImg = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
         }
         updateDataForFirestore.imageUrl = finalImg;
-      }
-      if (cleanUpdates.images !== undefined || (cleanUpdates as any).gallery !== undefined) {
         updateDataForFirestore.images = finalImages;
         updateDataForFirestore.gallery = finalImages;
       }
@@ -905,6 +918,8 @@ class PromptStore {
       if (cleanUpdates.scheduledDate !== undefined) updateDataForFirestore.scheduledDate = cleanUpdates.scheduledDate;
       if (cleanUpdates.seoTitle !== undefined) updateDataForFirestore.seoTitle = cleanUpdates.seoTitle;
       if (cleanUpdates.metaDescription !== undefined) updateDataForFirestore.metaDescription = cleanUpdates.metaDescription;
+      if (cleanUpdates.badgeMode !== undefined) updateDataForFirestore.badgeMode = cleanUpdates.badgeMode;
+      if (cleanUpdates.badgeType !== undefined) updateDataForFirestore.badgeType = cleanUpdates.badgeType;
       if (cleanUpdates.timerOverride !== undefined) updateDataForFirestore.timerOverride = cleanUpdates.timerOverride;
       if (cleanUpdates.cardConfig !== undefined) updateDataForFirestore.cardConfig = cleanUpdates.cardConfig;
       if (cleanUpdates.likes !== undefined) updateDataForFirestore.likes = cleanUpdates.likes;

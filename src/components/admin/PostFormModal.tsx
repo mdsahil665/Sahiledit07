@@ -1,9 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { PromptPost, Category, PostStatus } from '../../types';
-import { X, Upload, Link as LinkIcon, Sparkles, Image as ImageIcon, Eye, Save, Calendar, Clock, Lock, Loader2, FileText, Sliders, CheckCircle2, ArrowLeft, ArrowRight, Trash2, Plus, Images } from 'lucide-react';
+import { PromptPost, Category, PostStatus, BadgeMode, BadgeType } from '../../types';
+import { ALL_BADGE_TYPES } from '../../services/badgeService';
+import {
+  X,
+  Upload,
+  Link as LinkIcon,
+  Sparkles,
+  Image as ImageIcon,
+  Eye,
+  Save,
+  Calendar,
+  Clock,
+  Lock,
+  Loader2,
+  FileText,
+  Sliders,
+  CheckCircle2,
+  ArrowLeft,
+  ArrowRight,
+  Trash2,
+  Plus,
+  Images,
+  Star,
+  Tag,
+  Zap,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../Toast';
-import { promptStore } from '../../services/promptStore';
+import { promptStore, getPostGallery } from '../../services/promptStore';
 import { compressImageFile, compressDataUrl } from '../../lib/imageUtils';
 
 interface PostFormModalProps {
@@ -41,6 +65,10 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
   const [scheduledDate, setScheduledDate] = useState('');
   const [isPreviewMode, setIsPreviewMode] = useState(false);
 
+  // Per-Post Badge Settings
+  const [badgeMode, setBadgeMode] = useState<BadgeMode>('automatic');
+  const [badgeType, setBadgeType] = useState<BadgeType>('AI PROMPT');
+
   // Per-Post Timer Settings
   const [timerEnabled, setTimerEnabled] = useState(true);
   const [timerSeconds, setTimerSeconds] = useState<number>(5);
@@ -52,11 +80,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
 
   useEffect(() => {
     if (post) {
-      const existingImgs = post.images && Array.isArray(post.images) && post.images.length > 0
-        ? [...post.images]
-        : ((post as any).gallery && Array.isArray((post as any).gallery) && (post as any).gallery.length > 0
-          ? [...(post as any).gallery]
-          : (post.imageUrl ? [post.imageUrl] : ((post as any).image ? [(post as any).image] : [])));
+      // Edit mode: load all existing images safely
+      const existingImgs = getPostGallery(post);
       setGalleryImages(existingImgs);
       setImageUrl(existingImgs[0] || post.imageUrl || '');
       setTitle(post.title || '');
@@ -70,6 +95,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       setTrending(post.trending || false);
       setStatus(post.status || 'published');
       setScheduledDate(post.scheduledDate || '');
+      setBadgeMode(post.badgeMode || 'automatic');
+      setBadgeType((post.badgeType as BadgeType) || 'AI PROMPT');
 
       if (post.timerOverride) {
         setTimerEnabled(post.timerOverride.enabled);
@@ -79,10 +106,9 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
         setTimerSeconds(5);
       }
     } else {
-      // Default reset
-      const defaultImg = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
-      setGalleryImages([defaultImg]);
-      setImageUrl(defaultImg);
+      // New post: Gallery MUST start completely clean with 0 images
+      setGalleryImages([]);
+      setImageUrl('');
       setTitle('');
       setShortDescription('');
       setFullPrompt('');
@@ -94,6 +120,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       setTrending(false);
       setStatus('published');
       setScheduledDate('');
+      setBadgeMode('automatic');
+      setBadgeType('AI PROMPT');
       setTimerEnabled(true);
       setTimerSeconds(5);
     }
@@ -109,29 +137,30 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
     const cldSettings = promptStore.getCloudinarySettings();
     if (cldSettings.cloudName && cldSettings.uploadPreset) {
       setIsUploading(true);
-      showToast('Uploading to Cloudinary', 'Transferring image to your Cloudinary cloud storage...', 'info');
+      showToast('Uploading to Cloudinary', 'Transferring image to your Cloudinary storage...', 'info');
       const res = await promptStore.uploadToCloudinary(file);
       setIsUploading(false);
       if (res.success && res.url) {
-        setImageUrl(res.url);
-        setGalleryImages(prev => prev.length === 0 ? [res.url] : [res.url, ...prev.slice(1)]);
-        showToast('Image Uploaded!', 'Secure Cloudinary image URL generated and saved.', 'success');
+        const uploadedUrl = res.url;
+        setGalleryImages((prev) => [...prev, uploadedUrl]);
+        setImageUrl((prev) => prev || uploadedUrl);
+        showToast('Image Uploaded!', 'Secure Cloudinary image URL added to post gallery.', 'success');
       } else {
         showToast('Cloudinary Error', res.error || 'Upload failed. Falling back to compressed local preview', 'error');
         setIsUploading(true);
         const compressed = await compressImageFile(file);
         setIsUploading(false);
-        setImageUrl(compressed);
-        setGalleryImages(prev => prev.length === 0 ? [compressed] : [compressed, ...prev.slice(1)]);
+        setGalleryImages((prev) => [...prev, compressed]);
+        setImageUrl((prev) => prev || compressed);
       }
     } else {
       // Data URI compressed fallback
       setIsUploading(true);
       const compressed = await compressImageFile(file);
       setIsUploading(false);
-      setImageUrl(compressed);
-      setGalleryImages(prev => prev.length === 0 ? [compressed] : [compressed, ...prev.slice(1)]);
-      showToast('Local Preview Loaded', 'Tip: Add Cloudinary keys in Settings for automatic cloud storage', 'info');
+      setGalleryImages((prev) => [...prev, compressed]);
+      setImageUrl((prev) => prev || compressed);
+      showToast('Image Added', 'Added compressed image to gallery. Add Cloudinary credentials in Settings for cloud URLs.', 'info');
     }
   };
 
@@ -163,8 +192,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
 
     setIsUploading(false);
     if (uploadedUrls.length > 0) {
-      setGalleryImages(prev => [...prev, ...uploadedUrls]);
-      if (!imageUrl) setImageUrl(uploadedUrls[0]);
+      setGalleryImages((prev) => [...prev, ...uploadedUrls]);
+      setImageUrl((prev) => prev || uploadedUrls[0]);
       showToast('Images Uploaded!', `Added ${uploadedUrls.length} image(s) to post gallery.`, 'success');
     }
   };
@@ -172,8 +201,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
   const handleAddUrlToGallery = () => {
     if (!newUrlInput.trim()) return;
     const url = newUrlInput.trim();
-    setGalleryImages(prev => [...prev, url]);
-    if (!imageUrl) setImageUrl(url);
+    setGalleryImages((prev) => [...prev, url]);
+    setImageUrl((prev) => prev || url);
     setNewUrlInput('');
     showToast('Image Added', 'Image URL attached to post gallery.', 'success');
   };
@@ -187,16 +216,24 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
     updated[index] = updated[targetIndex];
     updated[targetIndex] = temp;
     setGalleryImages(updated);
+    setImageUrl(updated[0] || '');
+  };
+
+  const handleSetAsMainCover = (index: number) => {
+    if (index === 0 || index >= galleryImages.length) return;
+    const selected = galleryImages[index];
+    const remaining = galleryImages.filter((_, i) => i !== index);
+    const reordered = [selected, ...remaining];
+    setGalleryImages(reordered);
+    setImageUrl(selected);
+    showToast('Main Cover Updated', 'Image set as the primary cover.', 'info');
   };
 
   const handleDeleteImage = (index: number) => {
-    if (galleryImages.length <= 1) {
-      showToast('Action Blocked', 'Post gallery must contain at least one image.', 'error');
-      return;
-    }
     const updated = galleryImages.filter((_, i) => i !== index);
     setGalleryImages(updated);
-    showToast('Image Removed', 'Removed image from post gallery.', 'info');
+    setImageUrl(updated[0] || '');
+    showToast('Image Removed', 'Removed image from gallery.', 'info');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -216,10 +253,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       .map((t) => t.trim())
       .filter(Boolean);
 
-    let finalGallery = galleryImages.filter(Boolean);
-    if (finalGallery.length === 0) {
-      finalGallery = [imageUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80'];
-    }
+    const finalGallery = galleryImages.filter((img) => typeof img === 'string' && img.trim().length > 0);
 
     // Compress data URI images if present
     const processedGallery: string[] = [];
@@ -231,7 +265,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       }
     }
 
-    const coverUrl = processedGallery[0] || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
+    const coverUrl = processedGallery[0] || (imageUrl.trim().length > 0 ? imageUrl.trim() : '');
 
     onSave(
       {
@@ -247,6 +281,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
         trending,
         status,
         scheduledDate,
+        badgeMode,
+        badgeType: badgeMode === 'manual' ? badgeType : undefined,
         seoTitle: seoTitle || `${title} - Sahil Edits Prompt`,
         metaDescription: metaDescription || shortDescription,
         timerOverride: {
@@ -495,65 +531,92 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                         </div>
                       )}
 
-                      {/* Gallery Thumbnails List with Reordering & Deletion */}
+                      {/* Gallery Thumbnails List with Reordering, Set As Cover & Deletion */}
                       <div>
-                        <h5 className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider mb-2">
-                          Attached Gallery Thumbnails ({galleryImages.length})
-                        </h5>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                          {galleryImages.map((imgUrl, idx) => (
-                            <div
-                              key={idx}
-                              className={`relative group rounded-2xl overflow-hidden border-2 bg-zinc-900 transition-all flex flex-col ${
-                                idx === 0 ? 'border-purple-500/80 ring-2 ring-purple-500/20' : 'border-zinc-800'
-                              }`}
-                            >
-                              <div className="relative aspect-video w-full overflow-hidden bg-black">
-                                <img src={imgUrl} alt={`Gallery item ${idx + 1}`} className="w-full h-full object-cover" />
-                                {idx === 0 && (
-                                  <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-purple-600 text-white font-extrabold text-[9px] uppercase tracking-wider shadow-md">
-                                    MAIN COVER
-                                  </span>
-                                )}
-                                <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white font-mono text-[10px]">
-                                  #{idx + 1}
-                                </span>
-                              </div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
+                            Attached Gallery Thumbnails ({galleryImages.length})
+                          </h5>
+                          {galleryImages.length > 0 && (
+                            <span className="text-[10px] text-zinc-400">
+                              #1 is the active <strong className="text-purple-400">MAIN COVER</strong>
+                            </span>
+                          )}
+                        </div>
 
-                              <div className="flex items-center justify-between p-1.5 bg-zinc-950/90 border-t border-zinc-800">
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleMoveImage(idx, 'left')}
-                                    disabled={idx === 0}
-                                    title="Move Left"
-                                    className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
-                                  >
-                                    <ArrowLeft className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleMoveImage(idx, 'right')}
-                                    disabled={idx === galleryImages.length - 1}
-                                    title="Move Right"
-                                    className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer"
-                                  >
-                                    <ArrowRight className="w-3.5 h-3.5" />
-                                  </button>
+                        {galleryImages.length === 0 ? (
+                          <div className="p-6 rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/30 text-center">
+                            <Images className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
+                            <p className="text-xs font-bold text-zinc-300">No images in gallery (0 images)</p>
+                            <p className="text-[11px] text-zinc-400 mt-1 max-w-sm mx-auto">
+                              Upload files or paste URLs above. The first image added will automatically become the <span className="text-purple-400 font-semibold">MAIN COVER</span>.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                            {galleryImages.map((imgUrl, idx) => (
+                              <div
+                                key={idx}
+                                className={`relative group rounded-2xl overflow-hidden border-2 bg-zinc-900 transition-all flex flex-col ${
+                                  idx === 0 ? 'border-purple-500/80 ring-2 ring-purple-500/20' : 'border-zinc-800 hover:border-zinc-700'
+                                }`}
+                              >
+                                <div className="relative aspect-video w-full overflow-hidden bg-black">
+                                  <img src={imgUrl} alt={`Gallery item ${idx + 1}`} className="w-full h-full object-cover" />
+                                  {idx === 0 ? (
+                                    <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-purple-600 text-white font-extrabold text-[9px] uppercase tracking-wider shadow-md flex items-center gap-1">
+                                      <Star className="w-2.5 h-2.5 fill-current" /> MAIN COVER
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetAsMainCover(idx)}
+                                      title="Set as Main Cover"
+                                      className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-zinc-900/80 hover:bg-purple-600 text-zinc-300 hover:text-white font-bold text-[9px] uppercase tracking-wider shadow transition-colors cursor-pointer flex items-center gap-1 opacity-90 hover:opacity-100"
+                                    >
+                                      <Star className="w-2.5 h-2.5" /> Make Cover
+                                    </button>
+                                  )}
+                                  <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white font-mono text-[10px]">
+                                    #{idx + 1}
+                                  </span>
                                 </div>
 
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteImage(idx)}
-                                  title="Delete Image"
-                                  className="p-1 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                <div className="flex items-center justify-between p-1.5 bg-zinc-950/90 border-t border-zinc-800">
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMoveImage(idx, 'left')}
+                                      disabled={idx === 0}
+                                      title="Move Left (Towards Cover)"
+                                      className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer"
+                                    >
+                                      <ArrowLeft className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMoveImage(idx, 'right')}
+                                      disabled={idx === galleryImages.length - 1}
+                                      title="Move Right"
+                                      className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer"
+                                    >
+                                      <ArrowRight className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteImage(idx)}
+                                    title="Delete Image"
+                                    className="p-1 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -564,41 +627,64 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                           type="text"
                           value={imageUrl}
                           onChange={(e) => {
-                            setImageUrl(e.target.value);
-                            setGalleryImages([e.target.value]);
+                            const val = e.target.value;
+                            setImageUrl(val);
+                            setGalleryImages(val.trim() ? [val.trim()] : []);
                           }}
-                          placeholder="https://images.unsplash.com/..."
+                          placeholder="Paste image web URL (https://...)"
                           className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs font-semibold text-white focus:outline-none focus:border-purple-500"
                         />
                       ) : (
-                        <div className="relative border-2 border-dashed border-zinc-800 rounded-2xl p-6 text-center hover:border-purple-500/50 transition-colors">
-                          <Upload className="w-8 h-8 text-purple-400 mx-auto mb-2" />
-                          <p className="text-xs font-bold text-white">Click or drag image file to upload</p>
-                          <p className="text-[10px] text-zinc-500 mt-1">Uploads automatically to cloud storage</p>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleFileUpload}
-                            className="absolute inset-0 opacity-0 cursor-pointer"
-                          />
+                        <div className="relative border-2 border-dashed border-zinc-800 rounded-2xl p-6 text-center hover:border-purple-500/50 transition-colors bg-zinc-900/50">
+                          {isUploading ? (
+                            <div className="flex flex-col items-center justify-center py-2 space-y-2">
+                              <Loader2 className="w-7 h-7 text-purple-400 animate-spin" />
+                              <p className="text-xs font-bold text-white">Uploading media to storage...</p>
+                            </div>
+                          ) : (
+                            <>
+                              <Upload className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+                              <p className="text-xs font-bold text-white">Click or drag image file to upload</p>
+                              <p className="text-[10px] text-zinc-400 mt-1">Uploads automatically to cloud storage</p>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleFileUpload}
+                                className="absolute inset-0 opacity-0 cursor-pointer"
+                              />
+                            </>
+                          )}
                         </div>
                       )}
 
-                      {imageUrl && (
-                        <div className="relative w-32 h-24 rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900">
+                      {imageUrl ? (
+                        <div className="relative w-36 aspect-video rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 group">
                           <img src={imageUrl} alt="Cover preview" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImageUrl('');
+                              setGalleryImages([]);
+                            }}
+                            className="absolute top-1 right-1 p-1 rounded-lg bg-black/70 text-red-400 hover:text-red-300 hover:bg-black"
+                            title="Remove cover"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
+                      ) : (
+                        <p className="text-[11px] text-zinc-400 italic">No image attached yet.</p>
                       )}
                     </div>
                   )}
                 </div>
 
                 {/* CARD 3: PUBLISHING & BADGES */}
-                <div className="p-6 rounded-3xl bg-zinc-950/60 border border-zinc-800/80 space-y-4">
+                <div className="p-6 rounded-3xl bg-zinc-950/60 border border-zinc-800/80 space-y-5">
                   <div className="flex items-center gap-2 border-b border-zinc-800 pb-3">
                     <Sliders className="w-4 h-4 text-emerald-400" />
                     <h4 className="text-xs font-black uppercase tracking-wider text-zinc-300">
-                      3. Publishing & Badges
+                      3. Publishing & Badge Controls
                     </h4>
                   </div>
 
@@ -611,7 +697,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                         className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
                       />
                       <div>
-                        <span className="text-xs font-bold text-white block">Featured Badge</span>
+                        <span className="text-xs font-bold text-white block">Featured Post</span>
                         <span className="text-[10px] text-zinc-500">Show on Hero banner</span>
                       </div>
                     </label>
@@ -624,7 +710,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                         className="w-4 h-4 rounded text-amber-500 focus:ring-amber-500"
                       />
                       <div>
-                        <span className="text-xs font-bold text-white block">Trending Badge</span>
+                        <span className="text-xs font-bold text-white block">Trending Post</span>
                         <span className="text-[10px] text-zinc-500">Show in Trending feed</span>
                       </div>
                     </label>
@@ -643,6 +729,120 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                         <option value="scheduled">Scheduled</option>
                       </select>
                     </div>
+                  </div>
+
+                  {/* POST BADGE MODE SELECTOR */}
+                  <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-blue-400" />
+                        <span className="text-xs font-bold text-white uppercase tracking-wider">
+                          Post Badge Mode
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-zinc-400 font-medium">
+                        Active: <strong className="text-white uppercase">{badgeMode}</strong>
+                        {badgeMode === 'manual' && (
+                          <span className="ml-1 text-blue-400">({badgeType})</span>
+                        )}
+                      </span>
+                    </div>
+
+                    {/* Mode Buttons */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setBadgeMode('automatic')}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
+                          badgeMode === 'automatic'
+                            ? 'bg-blue-600 text-white border-blue-500 shadow-md'
+                            : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
+                        }`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Automatic / Smart</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setBadgeMode('none')}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
+                          badgeMode === 'none'
+                            ? 'bg-zinc-700 text-white border-zinc-600 shadow-md'
+                            : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
+                        }`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>None (Disabled)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setBadgeMode('manual')}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 border ${
+                          badgeMode === 'manual'
+                            ? 'bg-purple-600 text-white border-purple-500 shadow-md'
+                            : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
+                        }`}
+                      >
+                        <Sliders className="w-3.5 h-3.5 text-purple-300" />
+                        <span>Manual Override</span>
+                      </button>
+                    </div>
+
+                    {/* Mode Explanations & Manual Selection */}
+                    {badgeMode === 'automatic' && (
+                      <p className="text-[11px] text-zinc-400 bg-zinc-950/60 p-2.5 rounded-xl border border-zinc-800/60">
+                        ⚡ <strong>Smart Automatic Mode:</strong> Analyzes title, category, tags, and content keywords. The <strong>latest 3 published posts</strong> dynamically receive the <span className="text-emerald-400 font-bold">NEW</span> badge, while older posts show smart topic badges (AI PROMPT, PHOTO PROMPT, CREATIVE, etc.).
+                      </p>
+                    )}
+
+                    {badgeMode === 'none' && (
+                      <p className="text-[11px] text-zinc-400 bg-zinc-950/60 p-2.5 rounded-xl border border-zinc-800/60">
+                        🚫 <strong>None:</strong> No badge will be rendered on this specific post card.
+                      </p>
+                    )}
+
+                    {badgeMode === 'manual' && (
+                      <div className="space-y-2 pt-1">
+                        <label className="text-[11px] font-bold text-zinc-300 uppercase tracking-wider block">
+                          Select Manual Badge:
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          {ALL_BADGE_TYPES.map((b) => {
+                            const isSelected = badgeType === b;
+                            return (
+                              <button
+                                key={b}
+                                type="button"
+                                onClick={() => setBadgeType(b)}
+                                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border flex items-center gap-1.5 ${
+                                  isSelected
+                                    ? b === 'NEW'
+                                      ? 'bg-emerald-500 text-white border-emerald-400 shadow-emerald-500/30'
+                                      : b === 'PREMIUM'
+                                      ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-amber-500/30'
+                                      : b === 'PHOTO PROMPT'
+                                      ? 'bg-sky-500 text-white border-sky-400 shadow-sky-500/30'
+                                      : b === 'CREATIVE'
+                                      ? 'bg-purple-600 text-white border-purple-400 shadow-purple-500/30'
+                                      : b === 'TRENDING'
+                                      ? 'bg-amber-500 text-white border-amber-400 shadow-amber-500/30'
+                                      : b === 'HOT'
+                                      ? 'bg-rose-500 text-white border-rose-400 shadow-rose-500/30'
+                                      : 'bg-blue-600 text-white border-blue-400 shadow-blue-500/30'
+                                    : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
+                                }`}
+                              >
+                                <Sparkles className="w-3 h-3" />
+                                <span>{b}</span>
+                                {isSelected && <CheckCircle2 className="w-3 h-3 ml-0.5" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 

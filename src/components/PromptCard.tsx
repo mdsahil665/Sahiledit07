@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PromptPost, Category, DEFAULT_POST_CARD_CONFIG, PostCardConfig } from '../types';
 import { Eye, Copy, Check, Share2, Sparkles, Heart, ArrowUpRight, Images } from 'lucide-react';
 import { promptStore } from '../services/promptStore';
+import { getPostDisplayBadge } from '../services/badgeService';
 
 interface PromptCardProps {
   post: PromptPost;
@@ -55,19 +56,22 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
     return unsubscribe;
   }, [post.id, post.likes]);
 
+  const allPosts = promptStore.getPosts();
+  const badgeResult = getPostDisplayBadge(post, allPosts, cardConfig);
+
   const rawCategoryLabel =
     cardConfig.categoryLabelText ||
     category?.name ||
     post.categoryName ||
     (post.tags && post.tags.length > 0 ? `#${post.tags[0]}` : '');
 
-  const badgeLabel = cardConfig.badgeText || 'AI PROMPT';
+  const activeBadgeLabel = badgeResult?.label || '';
   const creatorLabel = cardConfig.creatorText || 'Sahil Edits';
 
   const showCategoryBadge =
     cardConfig.categoryLabelVisible !== false &&
     rawCategoryLabel.trim().length > 0 &&
-    rawCategoryLabel.trim().toLowerCase() !== badgeLabel.trim().toLowerCase();
+    rawCategoryLabel.trim().toLowerCase() !== activeBadgeLabel.trim().toLowerCase();
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -85,7 +89,7 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const shareUrl = `${window.location.origin}${window.location.pathname}?prompt=${post.id}`;
+    const shareUrl = `${window.location.origin}/post/${encodeURIComponent(post.id)}`;
     const shareData = {
       title: post.title,
       text: post.shortDescription || post.title,
@@ -185,11 +189,45 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
 
           {/* Top Badges / Indicators */}
           <div className="absolute top-3.5 left-3.5 right-3.5 flex items-center justify-between gap-2 pointer-events-none z-20">
-            {/* Left Badge: AI PROMPT or Admin Custom Badge */}
-            {cardConfig.badgeVisible !== false && (
-              <span className="px-3 py-1 rounded-full bg-white/90 backdrop-blur-md text-slate-900 text-[10px] sm:text-[11px] font-extrabold tracking-wider uppercase shadow-md border border-white/60 flex items-center gap-1.5">
-                <Sparkles className="w-3 h-3 text-amber-500 fill-amber-500" />
-                <span className="truncate max-w-[120px]">{badgeLabel}</span>
+            {/* Left Badge: Dynamic Smart Badge or Admin Manual Badge */}
+            {cardConfig.badgeVisible !== false && badgeResult && (
+              <span
+                className={`px-3 py-1 rounded-full backdrop-blur-md text-[10px] sm:text-[11px] font-extrabold tracking-wider uppercase shadow-md border flex items-center gap-1.5 ${
+                  badgeResult.badgeType === 'NEW'
+                    ? 'bg-emerald-500 text-white border-emerald-400 shadow-emerald-500/30'
+                    : badgeResult.badgeType === 'PHOTO PROMPT'
+                    ? 'bg-sky-500 text-white border-sky-400 shadow-sky-500/30'
+                    : badgeResult.badgeType === 'CREATIVE'
+                    ? 'bg-purple-600 text-white border-purple-400 shadow-purple-500/30'
+                    : badgeResult.badgeType === 'TRENDING'
+                    ? 'bg-amber-500 text-white border-amber-400 shadow-amber-500/30'
+                    : badgeResult.badgeType === 'HOT'
+                    ? 'bg-rose-500 text-white border-rose-400 shadow-rose-500/30'
+                    : badgeResult.badgeType === 'PREMIUM'
+                    ? 'bg-gradient-to-r from-amber-400 to-amber-300 text-slate-950 font-black border-amber-200 shadow-amber-500/30'
+                    : badgeResult.badgeType === 'AI PROMPT'
+                    ? 'bg-blue-600 text-white border-blue-400 shadow-blue-500/30'
+                    : 'bg-white/95 text-slate-900 border-white/80'
+                }`}
+              >
+                {badgeResult.badgeType === 'NEW' && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                )}
+                <Sparkles
+                  className={`w-3 h-3 ${
+                    badgeResult.badgeType === 'PREMIUM'
+                      ? 'text-slate-950 fill-slate-950'
+                      : badgeResult.badgeType === 'NEW' ||
+                        badgeResult.badgeType === 'PHOTO PROMPT' ||
+                        badgeResult.badgeType === 'CREATIVE' ||
+                        badgeResult.badgeType === 'TRENDING' ||
+                        badgeResult.badgeType === 'HOT' ||
+                        badgeResult.badgeType === 'AI PROMPT'
+                      ? 'text-white fill-white'
+                      : 'text-amber-500 fill-amber-500'
+                  }`}
+                />
+                <span className="truncate max-w-[120px]">{badgeResult.label}</span>
               </span>
             )}
 

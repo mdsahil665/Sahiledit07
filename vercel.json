@@ -18,6 +18,14 @@
       "destination": "/api/health"
     },
     {
+      "source": "/api/post-og",
+      "destination": "/api/post-og"
+    },
+    {
+      "source": "/post/:id",
+      "destination": "/api/post-og?id=:id"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
