@@ -211,6 +211,11 @@ export interface SecuritySettings {
 }
 
 // --- WEBSITE SETTINGS ---
+export interface SocialChannelConfig {
+  enabled: boolean;
+  url: string;
+}
+
 export interface SocialMediaLinks {
   enabled?: boolean;
   instagram: string;
@@ -221,6 +226,8 @@ export interface SocialMediaLinks {
   twitter: string;
   github: string;
   discord?: string;
+  channels?: Record<string, SocialChannelConfig>;
+  footerSocialLinks?: Record<string, SocialChannelConfig>;
 }
 
 export interface WebsiteSettings {
@@ -235,6 +242,7 @@ export interface WebsiteSettings {
   accentColor: string;
   darkModeDefault: boolean;
   socialLinks: SocialMediaLinks;
+  footerSocialLinks?: Record<string, SocialChannelConfig>;
   contactSocialLinks?: Partial<SocialMediaLinks>;
   contactEmail: string;
   contactPhone: string;

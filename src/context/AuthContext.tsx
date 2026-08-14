@@ -150,7 +150,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetPassword = async (email: string): Promise<void> => {
-    await sendPasswordResetEmail(auth, email);
+    const trimmedEmail = (email || '').trim();
+    if (!trimmedEmail) {
+      const err = new Error('Email address is required.');
+      (err as any).code = 'auth/missing-email';
+      throw err;
+    }
+
+    const origin = typeof window !== 'undefined' && window.location.origin
+      ? window.location.origin
+      : 'https://sahiledit.vercel.app';
+
+    const actionCodeSettings = {
+      url: `${origin}/reset-password`,
+      handleCodeInApp: true,
+    };
+
+    console.log('[Firebase Auth] Requesting password reset for:', trimmedEmail, 'with continue URL:', actionCodeSettings.url);
+
+    try {
+      await sendPasswordResetEmail(auth, trimmedEmail, actionCodeSettings);
+      console.log('[Firebase Auth] sendPasswordResetEmail succeeded with custom continue URL.');
+    } catch (err: any) {
+      console.warn('[Firebase Auth] sendPasswordResetEmail initial attempt notice:', err?.code, err?.message);
+
+      // If the domain is not yet added in Firebase Authorized Domains, fallback to standard sendPasswordResetEmail
+      if (
+        err?.code === 'auth/unauthorized-continue-uri' ||
+        err?.code === 'auth/invalid-continue-uri' ||
+        err?.code === 'auth/argument-error'
+      ) {
+        console.info('[Firebase Auth] Retrying sendPasswordResetEmail with default Firebase action handler...');
+        await sendPasswordResetEmail(auth, trimmedEmail);
+        console.log('[Firebase Auth] sendPasswordResetEmail default fallback succeeded.');
+        return;
+      }
+
+      throw err;
+    }
   };
 
   const loginWithGoogle = async (): Promise<User | null> => {

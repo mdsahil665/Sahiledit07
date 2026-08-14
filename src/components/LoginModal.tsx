@@ -11,7 +11,8 @@ interface LoginModalProps {
   onClose: () => void;
   onLoginSuccess?: (isAdmin: boolean) => void;
   onSuccess?: () => void;
-  initialMode?: 'login' | 'register';
+  initialMode?: 'login' | 'register' | 'reset';
+  initialEmail?: string;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
@@ -20,14 +21,26 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   onLoginSuccess,
   onSuccess,
   initialMode = 'login',
+  initialEmail = '',
 }) => {
   const [mode, setMode] = useState<'login' | 'register' | 'reset'>(initialMode);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setMode(initialMode);
+      if (initialEmail) {
+        setEmail(initialEmail);
+      }
+      setErrorMsg('');
+      setSuccessMsg('');
+    }
+  }, [isOpen, initialMode, initialEmail]);
 
   const { currentUser, loginWithEmail, registerWithEmail, resetPassword, loginWithGoogle } = useAuth();
   const { showToast } = useToast();
@@ -61,9 +74,32 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
   const formatFirebaseError = (err: any): string => {
     if (!err) return 'An error occurred during authentication.';
-    const code = err?.code ? `[${err.code}] ` : '';
-    const message = err?.message || String(err);
-    return `${code}${message}`;
+    const code = err?.code || '';
+    if (code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
+      return 'Invalid email or password. Please verify your credentials.';
+    }
+    if (code === 'auth/user-not-found') {
+      return 'No account found with this email. Please check your spelling or sign up.';
+    }
+    if (code === 'auth/email-already-in-use') {
+      return 'An account already exists with this email address. Please log in.';
+    }
+    if (code === 'auth/weak-password') {
+      return 'Password is too weak. Please use at least 6 characters.';
+    }
+    if (code === 'auth/invalid-email') {
+      return 'Please enter a valid email address.';
+    }
+    if (code === 'auth/too-many-requests') {
+      return 'Too many attempts. Please wait a few minutes and try again.';
+    }
+    if (code === 'auth/network-request-failed') {
+      return 'Network error. Please check your internet connection and try again.';
+    }
+    if (code === 'auth/operation-not-allowed') {
+      return 'Email/Password authentication is currently disabled in Firebase project settings.';
+    }
+    return err?.message || String(err);
   };
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
@@ -93,6 +129,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       }
       onClose();
     } catch (err: any) {
+      console.error('[Firebase Auth Login/Signup Error]', err?.code, err?.message, err);
       const msg = formatFirebaseError(err);
       setErrorMsg(msg);
       showToast('Authentication Error', msg, 'error');
@@ -121,19 +158,28 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setLoading(true);
     try {
       await resetPassword(trimmedEmail);
-      setSuccessMsg('Password reset link sent. Please check your email.');
-      showToast('Reset Link Sent', 'Password reset instructions sent to your email.');
+      const successNotice = `Password reset email sent to ${trimmedEmail}. Please check your inbox (and spam folder) for the reset link.`;
+      setSuccessMsg(successNotice);
+      showToast('Reset Link Sent', 'Password reset instructions have been sent to your email.', 'success');
     } catch (err: any) {
+      console.error('[Firebase Auth Password Reset Error]', err?.code, err?.message, err);
       const errCode = err?.code || '';
       if (errCode === 'auth/user-not-found') {
-        setErrorMsg('No user account found with this email address.');
+        setErrorMsg('No user account found with this email address. Please check your email or sign up.');
       } else if (errCode === 'auth/invalid-email') {
         setErrorMsg('Please enter a valid email address.');
       } else if (errCode === 'auth/too-many-requests') {
-        setErrorMsg('Too many attempts. Please wait a moment and try again.');
+        setErrorMsg('Too many reset attempts. Please wait a few minutes before trying again.');
+      } else if (errCode === 'auth/network-request-failed') {
+        setErrorMsg('Network error. Please check your internet connection and try again.');
+      } else if (errCode === 'auth/operation-not-allowed') {
+        setErrorMsg('Email/password authentication is currently disabled in Firebase settings.');
+      } else if (errCode === 'auth/unauthorized-continue-uri') {
+        setErrorMsg('The reset domain is not authorized in Firebase Console.');
       } else {
-        setErrorMsg('Failed to send password reset email. Please try again.');
+        setErrorMsg(err?.message || 'Failed to send password reset email. Please try again.');
       }
+      showToast('Reset Failed', errorMsg || 'Could not send reset email.', 'error');
     } finally {
       setLoading(false);
     }

@@ -12,6 +12,7 @@ import { Footer } from './components/Footer';
 import { PageModal } from './components/PageModal';
 import { AdBanner } from './components/AdBanner';
 import { LoginModal } from './components/LoginModal';
+import { ResetPasswordModal } from './components/ResetPasswordModal';
 import { UserProfileModal } from './components/UserProfileModal';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { PremiumPage } from './components/PremiumPage';
@@ -65,7 +66,11 @@ function AppContent() {
   const [activePromptModal, setActivePromptModal] = useState<PromptPost | null>(null);
   const [activePageModal, setActivePageModal] = useState<CustomPage | null>(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginModalMode, setLoginModalMode] = useState<'login' | 'register' | 'reset'>('login');
+  const [loginModalEmail, setLoginModalEmail] = useState('');
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
+  const [resetOobCode, setResetOobCode] = useState<string | null>(null);
   const [editingPostModal, setEditingPostModal] = useState<PromptPost | null | 'new'>(null);
   const [editingCategoryModal, setEditingCategoryModal] = useState<Category | null | 'new'>(null);
 
@@ -312,6 +317,16 @@ function AppContent() {
     const urlParams = new URLSearchParams(window.location.search);
     const hash = window.location.hash;
 
+    // Check for Firebase Password Reset Action (e.g. /reset-password?mode=resetPassword&oobCode=... or ?mode=resetPassword&oobCode=...)
+    const mode = urlParams.get('mode') || (hash.includes('mode=resetPassword') ? 'resetPassword' : null);
+    const oobCode = urlParams.get('oobCode') || urlParams.get('actionCode') || (hash.includes('oobCode=') ? new URLSearchParams(hash.substring(1)).get('oobCode') : null);
+
+    if (mode === 'resetPassword' || (pathname === '/reset-password' && oobCode) || oobCode) {
+      console.log('[Firebase Auth] Detected password reset link in URL with code:', oobCode ? '[REDACTED_CODE]' : 'missing');
+      setResetOobCode(oobCode);
+      setShowResetPasswordModal(true);
+    }
+
     let targetPromptId: string | null = null;
 
     if (pathname.startsWith('/post/')) {
@@ -324,8 +339,9 @@ function AppContent() {
     }
 
     if (targetPromptId) {
-      const targetPost = promptStore.getPostById(targetPromptId);
-      if (targetPost && targetPost.status === 'published') {
+      const decodedTargetId = decodeURIComponent(targetPromptId);
+      const targetPost = promptStore.getPostById(decodedTargetId) || promptStore.getPostById(targetPromptId);
+      if (targetPost && (!targetPost.status || targetPost.status === 'published')) {
         setActivePromptModal(targetPost);
       }
     } else {
@@ -359,6 +375,15 @@ function AppContent() {
     const handlePopState = () => {
       const pathname = window.location.pathname;
       const urlParams = new URLSearchParams(window.location.search);
+      const hash = window.location.hash;
+
+      const mode = urlParams.get('mode') || (hash.includes('mode=resetPassword') ? 'resetPassword' : null);
+      const oobCode = urlParams.get('oobCode') || urlParams.get('actionCode') || (hash.includes('oobCode=') ? new URLSearchParams(hash.substring(1)).get('oobCode') : null);
+
+      if (mode === 'resetPassword' || (pathname === '/reset-password' && oobCode) || oobCode) {
+        setResetOobCode(oobCode);
+        setShowResetPasswordModal(true);
+      }
 
       let targetPromptId: string | null = null;
 
@@ -372,8 +397,9 @@ function AppContent() {
       }
 
       if (targetPromptId) {
-        const targetPost = promptStore.getPostById(targetPromptId);
-        if (targetPost && targetPost.status === 'published') {
+        const decodedTargetId = decodeURIComponent(targetPromptId);
+        const targetPost = promptStore.getPostById(decodedTargetId) || promptStore.getPostById(targetPromptId);
+        if (targetPost && (!targetPost.status || targetPost.status === 'published')) {
           setActivePromptModal(targetPost);
           return;
         }
@@ -872,12 +898,55 @@ function AppContent() {
       {/* Firebase Login / Register Modal */}
       <LoginModal
         isOpen={showLoginModal}
-        onClose={() => setShowLoginModal(false)}
+        initialMode={loginModalMode}
+        initialEmail={loginModalEmail}
+        onClose={() => {
+          setShowLoginModal(false);
+          setLoginModalMode('login');
+          setLoginModalEmail('');
+        }}
         onLoginSuccess={(isAdminUser) => {
           setShowLoginModal(false);
+          setLoginModalMode('login');
+          setLoginModalEmail('');
           if (isAdminUser) {
             setShowAdminDashboard(true);
           }
+        }}
+      />
+
+      {/* Firebase Password Reset Modal (Triggered by email reset links) */}
+      <ResetPasswordModal
+        isOpen={showResetPasswordModal}
+        oobCode={resetOobCode}
+        onClose={() => {
+          setShowResetPasswordModal(false);
+          setResetOobCode(null);
+          // Clear query params to clean URL
+          if (window.location.search.includes('mode=') || window.location.search.includes('oobCode=') || window.location.pathname === '/reset-password') {
+            window.history.replaceState(null, '', '/');
+          }
+        }}
+        onSuccessLogin={(email) => {
+          setShowResetPasswordModal(false);
+          setResetOobCode(null);
+          if (window.location.search.includes('mode=') || window.location.search.includes('oobCode=') || window.location.pathname === '/reset-password') {
+            window.history.replaceState(null, '', '/');
+          }
+          setLoginModalMode('login');
+          if (email) {
+            setLoginModalEmail(email);
+          }
+          setShowLoginModal(true);
+        }}
+        onRequestNewLink={() => {
+          setShowResetPasswordModal(false);
+          setResetOobCode(null);
+          if (window.location.search.includes('mode=') || window.location.search.includes('oobCode=') || window.location.pathname === '/reset-password') {
+            window.history.replaceState(null, '', '/');
+          }
+          setLoginModalMode('reset');
+          setShowLoginModal(true);
         }}
       />
 

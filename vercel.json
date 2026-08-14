@@ -1,5 +1,10 @@
 {
   "version": 2,
+  "functions": {
+    "api/*.ts": {
+      "includeFiles": "dist/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/payment/create-order",
@@ -26,8 +31,17 @@
       "destination": "/api/post-og?id=:id"
     },
     {
+      "source": "/post/:id/",
+      "destination": "/api/post-og?id=:id"
+    },
+    {
+      "source": "/post/:id/:path*",
+      "destination": "/api/post-og?id=:id"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
 }
+

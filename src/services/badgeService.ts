@@ -146,13 +146,26 @@ export interface PostBadgeResult {
   isLatestNew?: boolean;
 }
 
+export function normalizeBadgeType(type?: string | null): BadgeType | string {
+  if (!type) return 'AI PROMPT';
+  const clean = type.trim().toUpperCase().replace(/_/g, ' ');
+  if (clean === 'NEW') return 'NEW';
+  if (clean === 'AI PROMPT' || clean === 'AIPROMPT') return 'AI PROMPT';
+  if (clean === 'PHOTO PROMPT' || clean === 'PHOTOPROMPT') return 'PHOTO PROMPT';
+  if (clean === 'CREATIVE') return 'CREATIVE';
+  if (clean === 'TRENDING') return 'TRENDING';
+  if (clean === 'HOT') return 'HOT';
+  if (clean === 'PREMIUM') return 'PREMIUM';
+  return clean;
+}
+
 /**
  * Main resolution function for post badge.
  * Priority:
  * 1. MANUAL (always wins)
  * 2. NONE (completely disables badge)
  * 3. AUTOMATIC NEW (latest 3 eligible posts)
- * 4. AUTOMATIC SMART CATEGORY
+ * 4. AUTOMATIC SMART CATEGORY / CONTENT / FLAGS
  * 5. NO BADGE
  */
 export function getPostDisplayBadge(
@@ -171,13 +184,13 @@ export function getPostDisplayBadge(
 
   // 2. MANUAL mode (Admin choice strictly honored)
   if (mode === 'manual') {
-    const manualType = (post.badgeType || 'AI PROMPT').trim();
-    if (!manualType) return null;
+    const rawManual = post.badgeType || 'AI PROMPT';
+    const normalized = normalizeBadgeType(rawManual);
     return {
-      badgeType: manualType,
-      label: manualType,
+      badgeType: normalized,
+      label: normalized,
       mode: 'manual',
-      isLatestNew: manualType === 'NEW',
+      isLatestNew: normalized === 'NEW',
     };
   }
 

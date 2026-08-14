@@ -47,7 +47,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   onOpenPrompt,
   onOpenAdminDashboard,
 }) => {
-  const { currentUser, isAdmin, isPremium, favorites, logout, toggleFavorite } = useAuth();
+  const { currentUser, isAdmin, isPremium, favorites, logout, toggleFavorite, resetPassword } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { showToast } = useToast();
 
@@ -165,12 +165,47 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   };
 
   const handleResetPassword = async () => {
-    if (!currentUser?.email) return;
+    const activeAuthUser = auth.currentUser || currentUser;
+    if (!activeAuthUser || !activeAuthUser.email) {
+      showToast('Error', 'No authenticated user email found.', 'error');
+      return;
+    }
+
+    // Inspect provider to verify if the account is Google-only
+    const providers = activeAuthUser.providerData || [];
+    const isGoogleOnly =
+      providers.length > 0 &&
+      providers.every((p) => p.providerId === 'google.com') &&
+      !providers.some((p) => p.providerId === 'password');
+
+    if (isGoogleOnly) {
+      showToast(
+        'Google Sign-In Account',
+        'This account uses Google Sign-In. Please continue with Google to sign in.',
+        'info'
+      );
+      return;
+    }
+
+    const registeredEmail = activeAuthUser.email.trim();
+
     try {
-      await sendPasswordResetEmail(auth, currentUser.email);
-      showToast('Reset Link Sent!', `Password reset email sent to ${currentUser.email}`, 'success');
+      await resetPassword(registeredEmail);
+      showToast(
+        'Reset Link Sent!',
+        `Password reset instructions sent to ${registeredEmail}. Please check your inbox.`,
+        'success'
+      );
     } catch (err: any) {
-      showToast('Reset Request Failed', err?.message || 'Could not send reset email.', 'error');
+      console.error('[Firebase Auth Profile Password Reset Error]', err?.code, err?.message, err);
+      const errCode = err?.code || '';
+      let errorMsg = err?.message || 'Could not send reset email.';
+      if (errCode === 'auth/too-many-requests') {
+        errorMsg = 'Too many reset requests. Please wait a few minutes before trying again.';
+      } else if (errCode === 'auth/network-request-failed') {
+        errorMsg = 'Network error. Please check your internet connection.';
+      }
+      showToast('Reset Request Failed', errorMsg, 'error');
     }
   };
 

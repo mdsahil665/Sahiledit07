@@ -72,6 +72,17 @@ export function compressImageFile(
   });
 }
 
+function sanitizeUrl(url: string): string {
+  if (!url) return '';
+  let clean = url.trim();
+  if (clean.startsWith('//')) {
+    clean = `https:${clean}`;
+  } else if (clean.startsWith('http://')) {
+    clean = clean.replace(/^http:\/\//i, 'https://');
+  }
+  return clean;
+}
+
 export function getPostMainCoverImage(post: any): string {
   const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
   if (!post) return DEFAULT_IMAGE;
@@ -81,16 +92,16 @@ export function getPostMainCoverImage(post: any): string {
     for (const item of post.gallery) {
       if (typeof item === 'object' && item !== null) {
         if (item.isCover && typeof item.url === 'string' && item.url.trim().length > 0) {
-          return item.url.trim();
+          return sanitizeUrl(item.url);
         }
       }
     }
     const first = post.gallery[0];
     if (typeof first === 'string' && first.trim().length > 0) {
-      return first.trim();
+      return sanitizeUrl(first);
     }
     if (typeof first === 'object' && first !== null && typeof (first as any).url === 'string' && (first as any).url.trim().length > 0) {
-      return (first as any).url.trim();
+      return sanitizeUrl((first as any).url);
     }
   }
 
@@ -98,19 +109,19 @@ export function getPostMainCoverImage(post: any): string {
   if (post.images && Array.isArray(post.images) && post.images.length > 0) {
     const firstImg = post.images[0];
     if (typeof firstImg === 'string' && firstImg.trim().length > 0) {
-      return firstImg.trim();
+      return sanitizeUrl(firstImg);
     }
     if (typeof firstImg === 'object' && firstImg !== null && typeof (firstImg as any).url === 'string' && (firstImg as any).url.trim().length > 0) {
-      return (firstImg as any).url.trim();
+      return sanitizeUrl((firstImg as any).url);
     }
   }
 
   // 3. Check imageUrl / image
   if (typeof post.imageUrl === 'string' && post.imageUrl.trim().length > 0) {
-    return post.imageUrl.trim();
+    return sanitizeUrl(post.imageUrl);
   }
   if (typeof post.image === 'string' && post.image.trim().length > 0) {
-    return post.image.trim();
+    return sanitizeUrl(post.image);
   }
 
   return DEFAULT_IMAGE;

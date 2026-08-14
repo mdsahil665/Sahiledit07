@@ -151,6 +151,16 @@ const DEFAULT_WEBSITE_SETTINGS: WebsiteSettings = {
     github: 'https://github.com/sahiledits',
     discord: 'https://discord.gg/sahiledits',
   },
+  footerSocialLinks: {
+    instagram: { enabled: true, url: 'https://instagram.com/sahiledits' },
+    facebook: { enabled: true, url: 'https://facebook.com/sahiledits' },
+    telegram: { enabled: true, url: 'https://t.me/sahiledits' },
+    discord: { enabled: false, url: 'https://discord.gg/sahiledits' },
+    youtube: { enabled: true, url: 'https://youtube.com/@sahiledits' },
+    twitter: { enabled: true, url: 'https://x.com/sahiledits' },
+    whatsapp: { enabled: true, url: 'https://wa.me/919876543210' },
+    github: { enabled: false, url: 'https://github.com/sahiledits' },
+  },
   contactEmail: 'mdsahil012002@gmail.com',
   contactPhone: '+1 (555) 019-2834',
   contactAddress: 'Sahil Edits HQ, California, USA',
@@ -1525,12 +1535,17 @@ class PromptStore {
 
   // --- WEBSITE SETTINGS ---
   public getWebsiteSettings(): WebsiteSettings {
+    const raw = this.websiteSettingsCache || DEFAULT_WEBSITE_SETTINGS;
     return {
       ...DEFAULT_WEBSITE_SETTINGS,
-      ...this.websiteSettingsCache,
+      ...raw,
       socialLinks: {
         ...DEFAULT_WEBSITE_SETTINGS.socialLinks,
-        ...(this.websiteSettingsCache?.socialLinks || {}),
+        ...(raw.socialLinks || {}),
+      },
+      footerSocialLinks: {
+        ...DEFAULT_WEBSITE_SETTINGS.footerSocialLinks,
+        ...(raw.footerSocialLinks || {}),
       },
     };
   }

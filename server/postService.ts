@@ -104,14 +104,16 @@ export function extractMainCoverImage(post: Partial<DecodedPost> | null | undefi
 
 function sanitizeImageUrl(url: string): string {
   if (!url) return '';
-  // Ensure it's not a relative path or blob
-  if (url.startsWith('//')) {
-    return `https:${url}`;
+  let clean = url.trim();
+  // Ensure it's not a relative protocol
+  if (clean.startsWith('//')) {
+    clean = `https:${clean}`;
+  } else if (clean.startsWith('http://')) {
+    clean = clean.replace(/^http:\/\//i, 'https://');
+  } else if (!clean.startsWith('https://')) {
+    clean = `https://${clean}`;
   }
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    return url;
-  }
-  return url;
+  return clean;
 }
 
 // In-memory cache with TTL for ultra fast response
