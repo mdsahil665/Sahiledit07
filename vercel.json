@@ -23,24 +23,10 @@
     },
     {
       "source": "/prompt/:id*",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": ".*(facebookexternalhit|Facebot|Twitterbot|WhatsApp|TelegramBot|Slackbot|Discordbot|Pinterest|LinkedInBot|Googlebot|bingbot|Baiduspider|yandex|Applebot).*"
-        }
-      ],
       "destination": "/api/post-og?id=:id"
     },
     {
       "source": "/post/:id*",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": ".*(facebookexternalhit|Facebot|Twitterbot|WhatsApp|TelegramBot|Slackbot|Discordbot|Pinterest|LinkedInBot|Googlebot|bingbot|Baiduspider|yandex|Applebot).*"
-        }
-      ],
       "destination": "/api/post-og?id=:id"
     },
     {
