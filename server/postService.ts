@@ -1,5 +1,16 @@
 import { INITIAL_PROMPTS } from '../src/data/initialData';
-import appletConfig from '../firebase-applet-config.json';
+
+let appletConfig: any = {};
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  appletConfig = require('../firebase-applet-config.json');
+} catch (e) {
+  appletConfig = {
+    projectId: 'gen-lang-client-0103668196',
+    firestoreDatabaseId: 'ai-studio-sahiledits-c87baa5c-a269-446e-ae1f-2e996ad4358d',
+    apiKey: 'AIzaSyCCV05qIA8g_NXcxOI8F-71zyWI62UQeDQ',
+  };
+}
 
 export interface DecodedPost {
   id: string;
