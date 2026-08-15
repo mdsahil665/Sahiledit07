@@ -1,4 +1,5 @@
 import { INITIAL_PROMPTS } from '../src/data/initialData';
+import { createSlugFromTitle, getPromptSlug } from '../src/utils/promptUrl';
 
 let appletConfig: any = {};
 try {
@@ -11,6 +12,7 @@ try {
     apiKey: 'AIzaSyCCV05qIA8g_NXcxOI8F-71zyWI62UQeDQ',
   };
 }
+
 
 export interface DecodedPost {
   id: string;
@@ -137,108 +139,139 @@ export async function fetchPostByIdServer(postIdOrSlug: string): Promise<Decoded
   let rawParam = postIdOrSlug.trim();
   if (!rawParam) return null;
 
-  // Extract ID if param is a slug (e.g. "viral-prompt-prompt-1786305758866-3twf")
+  // Extract ID if param is an embedded id or clean slug
   let cleanId = rawParam;
   const promptMatch = rawParam.match(/(prompt-[\w-]+)/i);
   if (promptMatch && promptMatch[1]) {
     cleanId = promptMatch[1];
   }
 
+  const normalizedLookup = createSlugFromTitle(rawParam);
+
   // Check cache first
-  const cached = postCache.get(cleanId) || postCache.get(rawParam);
+  const cached = postCache.get(cleanId) || postCache.get(rawParam) || (normalizedLookup ? postCache.get(normalizedLookup) : null);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return cached.post;
   }
 
   let foundPost: DecodedPost | null = null;
 
-  // 1. Try Firestore REST API (check prompts collection first, then posts)
   const projectId = (appletConfig as any)?.projectId || 'gen-lang-client-0103668196';
   const databaseId = (appletConfig as any)?.firestoreDatabaseId || 'ai-studio-sahiledits-c87baa5c-a269-446e-ae1f-2e996ad4358d';
   const apiKey = (appletConfig as any)?.apiKey || 'AIzaSyCCV05qIA8g_NXcxOI8F-71zyWI62UQeDQ';
 
-  const idsToTry = [cleanId];
-  if (cleanId !== rawParam) {
-    idsToTry.push(rawParam);
-  }
-
-  const collections = ['prompts', 'posts'];
-  for (const id of idsToTry) {
-    if (foundPost) break;
-    for (const col of collections) {
-      if (foundPost) break;
-      const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/${col}/${encodeURIComponent(id)}${apiKey ? `?key=${apiKey}` : ''}`;
-
+  // 1. If cleanId looks like a direct document ID (e.g. prompt-1786...), try direct Firestore GET first
+  if (cleanId.startsWith('prompt-')) {
+    const directUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/prompts/${encodeURIComponent(cleanId)}${apiKey ? `?key=${apiKey}` : ''}`;
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
-
-      const res = await fetch(firestoreUrl, {
+      const timeoutId = setTimeout(() => controller.abort(), 2500);
+      const res = await fetch(directUrl, {
         signal: controller.signal,
-        headers: {
-          Accept: 'application/json',
-        },
+        headers: { Accept: 'application/json' },
       });
       clearTimeout(timeoutId);
 
       if (res.ok) {
         const data = await res.json();
         if (data && data.fields) {
-          const fields = data.fields;
           const parsed: any = { id: cleanId };
-          for (const k of Object.keys(fields)) {
-            parsed[k] = parseFirestoreValue(fields[k]);
+          for (const k of Object.keys(data.fields)) {
+            parsed[k] = parseFirestoreValue(data.fields[k]);
           }
           foundPost = parsed as DecodedPost;
-          break;
         }
       }
-    } catch (err: any) {
-      // Firestore network notice (fallback will handle)
-    }
+    } catch (err) {
+      // ignore direct fetch error
     }
   }
 
-  // 2. If not found in custom database, check fallback to (default) database if different
-  if (!foundPost && databaseId !== '(default)') {
-    for (const col of collections) {
-      if (foundPost) break;
-      try {
-        const defaultUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${col}/${encodeURIComponent(cleanId)}${apiKey ? `?key=${apiKey}` : ''}`;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 2000);
-        const res = await fetch(defaultUrl, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.fields) {
-            const fields = data.fields;
-            const parsed: any = { id: cleanId };
-            for (const k of Object.keys(fields)) {
-              parsed[k] = parseFirestoreValue(fields[k]);
-            }
-            foundPost = parsed as DecodedPost;
-            break;
-          }
-        }
-      } catch (err) {
-        // ignore
-      }
-    }
-  }
-
-  // 3. Fallback to INITIAL_PROMPTS
+  // 2. If not found yet (e.g. rawParam is a title slug like "15-august-independence-day..."), query Firestore collection
   if (!foundPost) {
+    const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents:runQuery${apiKey ? `?key=${apiKey}` : ''}`;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const res = await fetch(queryUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          structuredQuery: {
+            from: [{ collectionId: 'prompts' }],
+            limit: 100,
+          },
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const listData = await res.json();
+        if (Array.isArray(listData)) {
+          const allFetched: DecodedPost[] = [];
+          for (const item of listData) {
+            if (item.document && item.document.fields) {
+              const docId = item.document.name.split('/').pop() || '';
+              const parsed: any = { id: docId };
+              for (const k of Object.keys(item.document.fields)) {
+                parsed[k] = parseFirestoreValue(item.document.fields[k]);
+              }
+              const postObj = parsed as DecodedPost;
+              allFetched.push(postObj);
+
+              // Cache individually
+              postCache.set(docId, { post: postObj, timestamp: Date.now() });
+              const postSlug = getPromptSlug(postObj);
+              if (postSlug) {
+                postCache.set(postSlug, { post: postObj, timestamp: Date.now() });
+              }
+            }
+          }
+
+          // Match by exact ID, exact slug, or title slug
+          const targetSlug = normalizedLookup || createSlugFromTitle(cleanId);
+          foundPost =
+            allFetched.find((p) => p.id === cleanId || p.id === rawParam) ||
+            allFetched.find((p) => p.slug && createSlugFromTitle(p.slug) === targetSlug) ||
+            allFetched.find((p) => getPromptSlug(p) === targetSlug) ||
+            allFetched.find((p) => createSlugFromTitle(p.title) === targetSlug) ||
+            allFetched.find((p) => {
+              const tSlug = createSlugFromTitle(p.title);
+              return tSlug && (targetSlug.startsWith(tSlug) || tSlug.startsWith(targetSlug));
+            }) ||
+            null;
+        }
+      }
+    } catch (queryErr) {
+      console.error('[Firestore runQuery Error]', queryErr);
+    }
+  }
+
+  // 3. Fallback to INITIAL_PROMPTS if still not found
+  if (!foundPost) {
+    const targetSlug = normalizedLookup || createSlugFromTitle(cleanId);
     const local = INITIAL_PROMPTS.find(
-      (p) => p.id === cleanId || p.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') === cleanId.toLowerCase()
+      (p) =>
+        p.id === cleanId ||
+        p.id === rawParam ||
+        getPromptSlug(p) === targetSlug ||
+        createSlugFromTitle(p.title) === targetSlug
     );
     if (local) {
       foundPost = { ...local };
     }
   }
 
-  // Cache result
-  postCache.set(cleanId, { post: foundPost, timestamp: Date.now() });
+  // Cache result under all aliases
+  if (foundPost) {
+    postCache.set(cleanId, { post: foundPost, timestamp: Date.now() });
+    postCache.set(rawParam, { post: foundPost, timestamp: Date.now() });
+    if (normalizedLookup) {
+      postCache.set(normalizedLookup, { post: foundPost, timestamp: Date.now() });
+    }
+  }
 
   return foundPost;
 }
+

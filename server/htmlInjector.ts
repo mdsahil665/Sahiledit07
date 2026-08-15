@@ -1,4 +1,5 @@
 import { DecodedPost, extractMainCoverImage } from './postService';
+import { getPromptSlug } from '../src/utils/promptUrl';
 
 export function escapeHtml(str: string): string {
   if (!str) return '';
@@ -60,7 +61,7 @@ export function injectPostMetadataIntoHtml(
   }
 
   const baseUrl = getBaseUrl(req);
-  const promptSlug = post.slug || post.id;
+  const promptSlug = getPromptSlug(post as any) || post.slug || post.id;
   const canonicalUrl = `${baseUrl}/prompt/${encodeURIComponent(promptSlug)}`;
 
   const postTitle = (post.seoTitle || post.title || 'AI Prompt').trim();

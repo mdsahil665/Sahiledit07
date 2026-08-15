@@ -20,7 +20,7 @@ import { PostFormModal } from './components/admin/PostFormModal';
 import { CategoryFormModal } from './components/admin/CategoryFormModal';
 import { SEOHelper } from './components/SEOHelper';
 import { promptStore, sortPostsByCreatedAtDesc } from './services/promptStore';
-import { getPromptSlug, extractPromptIdFromParam } from './utils/promptUrl';
+import { getPromptSlug, extractPromptIdFromParam, createSlugFromTitle } from './utils/promptUrl';
 import { PromptPost, Category, CustomPage } from './types';
 import {
   SearchX,
@@ -317,28 +317,64 @@ function AppContent() {
     if (!slugOrId) return null;
     const cleanId = extractPromptIdFromParam(slugOrId);
     const decodedRaw = decodeURIComponent(slugOrId).trim().toLowerCase();
+    const targetSlug = createSlugFromTitle(decodedRaw);
+
+    const all = promptStore.getPosts();
 
     // 1. Direct ID match
     let found = promptStore.getPostById(cleanId);
     if (found) return found;
 
     // 2. Slug or exact ID match
-    const all = promptStore.getPosts();
     found = all.find((p) => (p.slug && p.slug.toLowerCase() === decodedRaw) || p.id.toLowerCase() === decodedRaw);
     if (found) return found;
 
-    // 3. Match post that has this ID as substring in slug
-    found = all.find((p) => p.id && decodedRaw.includes(p.id.toLowerCase()));
+    // 3. Match calculated slug or title slug
+    found = all.find((p) => {
+      const pSlug = getPromptSlug(p).toLowerCase();
+      const tSlug = createSlugFromTitle(p.title || '').toLowerCase();
+      return pSlug === decodedRaw || tSlug === decodedRaw || (targetSlug && (pSlug === targetSlug || tSlug === targetSlug));
+    });
     if (found) return found;
 
-    // 4. Match clean title
+    // 4. Substring or prefix matching
     found = all.find((p) => {
-      const t = (p.title || '').toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-      return t && decodedRaw.includes(t);
+      const tSlug = createSlugFromTitle(p.title || '').toLowerCase();
+      return tSlug && targetSlug && (targetSlug.startsWith(tSlug) || tSlug.startsWith(targetSlug));
     });
 
     return found || null;
   }, []);
+
+  // Parse URL search parameters and path on initial load and when posts load
+  useEffect(() => {
+    const pathname = window.location.pathname;
+    const urlParams = new URLSearchParams(window.location.search);
+    const hash = window.location.hash;
+
+    let targetPromptSlugOrId: string | null = null;
+
+    if (pathname.startsWith('/prompt/')) {
+      const parts = pathname.split('/prompt/');
+      if (parts[1]) {
+        targetPromptSlugOrId = parts[1].split('/')[0];
+      }
+    } else if (pathname.startsWith('/post/')) {
+      const parts = pathname.split('/post/');
+      if (parts[1]) {
+        targetPromptSlugOrId = parts[1].split('/')[0];
+      }
+    } else if (urlParams.has('prompt') || urlParams.has('post') || urlParams.has('p')) {
+      targetPromptSlugOrId = urlParams.get('prompt') || urlParams.get('post') || urlParams.get('p');
+    }
+
+    if (targetPromptSlugOrId) {
+      const targetPost = findPostBySlugOrId(targetPromptSlugOrId);
+      if (targetPost && (!targetPost.status || targetPost.status === 'published')) {
+        setActivePromptModal(targetPost);
+      }
+    }
+  }, [posts, findPostBySlugOrId]);
 
   // Parse URL search parameters on initial page load for deep-linking
   useEffect(() => {

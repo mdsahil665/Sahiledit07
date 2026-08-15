@@ -1,21 +1,17 @@
 import fs from 'fs';
 import path from 'path';
 import { fetchPostByIdServer, extractMainCoverImage } from '../server/postService';
-import { injectPostMetadataIntoHtml } from '../server/htmlInjector';
-import { extractPromptIdFromParam } from '../src/utils/promptUrl';
+import { injectPostMetadataIntoHtml, escapeHtml, cleanDescription } from '../server/htmlInjector';
+import { extractPromptIdFromParam, getPromptSlug } from '../src/utils/promptUrl';
 
-function isBotRequest(userAgent: string): boolean {
-  if (!userAgent) return true;
-  const botPattern =
-    /facebookexternalhit|facebookcatalog|Facebot|Twitterbot|WhatsApp|TelegramBot|Slackbot|Discordbot|Pinterest|LinkedInBot|Googlebot|bingbot|Baiduspider|yandex|Applebot|vkShare|redditbot|bot|crawler|spider|curl|wget/i;
-  return botPattern.test(userAgent);
-}
-
-function getEmergencyHtml(postId: string, title?: string, desc?: string, img?: string) {
-  const safeTitle = title ? `${title} - Sahil Edits` : 'Sahil Edits – Premium AI Prompt Library';
-  const safeDesc = desc || 'Discover and copy trending AI prompts with 1-click on Sahil Edits.';
-  const safeImg = img || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
-  const canonical = postId ? `https://sahiledit.vercel.app/prompt/${encodeURIComponent(postId)}` : 'https://sahiledit.vercel.app/';
+function getFallbackHtml(post: any, rawSlugOrId: string) {
+  const postTitle = (post?.seoTitle || post?.title || 'AI Prompt').trim();
+  const safeTitle = postTitle ? `${escapeHtml(postTitle)} - Sahil Edits` : 'Sahil Edits – Premium AI Prompt Library';
+  const postDesc = post?.shortDescription || post?.metaDescription || post?.fullPrompt || 'Discover and copy trending AI prompts with 1-click on Sahil Edits.';
+  const safeDesc = escapeHtml(cleanDescription(postDesc, 200));
+  const safeImg = post ? extractMainCoverImage(post) : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
+  const slug = post ? getPromptSlug(post) : rawSlugOrId;
+  const canonical = `https://sahiledit.vercel.app/prompt/${encodeURIComponent(slug)}`;
 
   return `<!doctype html>
 <html lang="en" class="dark">
@@ -25,36 +21,43 @@ function getEmergencyHtml(postId: string, title?: string, desc?: string, img?: s
   <meta name="theme-color" content="#09090b" />
   <title>${safeTitle}</title>
   <meta name="description" content="${safeDesc}" />
-  <link rel="canonical" href="${canonical}" />
-  <meta property="og:type" content="article" />
-  <meta property="og:url" content="${canonical}" />
-  <meta property="og:title" content="${safeTitle}" />
-  <meta property="og:description" content="${safeDesc}" />
-  <meta property="og:image" content="${safeImg}" />
+  <link rel="canonical" href="${canonical}" id="seo-canonical-link" />
+  
+  <!-- Open Graph / WhatsApp / Facebook -->
+  <meta property="og:type" content="article" id="seo-og-type" />
+  <meta property="og:url" content="${canonical}" id="seo-og-url" />
+  <meta property="og:title" content="${safeTitle}" id="seo-og-title" />
+  <meta property="og:description" content="${safeDesc}" id="seo-og-description" />
+  <meta property="og:image" content="${safeImg}" id="seo-og-image" />
   <meta property="og:image:secure_url" content="${safeImg}" />
+  <meta property="og:image:alt" content="${safeTitle}" />
+  <meta property="og:image:type" content="image/png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:site_name" content="Sahil Edits" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:url" content="${canonical}" />
-  <meta name="twitter:title" content="${safeTitle}" />
-  <meta name="twitter:description" content="${safeDesc}" />
-  <meta name="twitter:image" content="${safeImg}" />
-  <meta http-equiv="refresh" content="0; url=/?prompt=${encodeURIComponent(postId)}" />
-</head>
-<body class="bg-[#0F172A] text-zinc-100 flex items-center justify-center min-h-screen font-sans">
-  <div class="text-center p-8">
-    <h1 class="text-xl font-bold text-white mb-2">${safeTitle}</h1>
-    <p class="text-zinc-400 mb-4">${safeDesc}</p>
-    <a href="/?prompt=${encodeURIComponent(postId)}" class="inline-block px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition">
-      Open Prompt on Sahil Edits &rarr;
-    </a>
-  </div>
-  <script>
-    if (typeof window !== 'undefined') {
-      window.location.replace('/?prompt=${encodeURIComponent(postId)}');
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" id="seo-twitter-card" />
+  <meta name="twitter:url" content="${canonical}" id="seo-twitter-url" />
+  <meta name="twitter:title" content="${safeTitle}" id="seo-twitter-title" />
+  <meta name="twitter:description" content="${safeDesc}" id="seo-twitter-description" />
+  <meta name="twitter:image" content="${safeImg}" id="seo-twitter-image" />
+
+  <style>
+    html, body, #root {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      padding: 0;
+      background-color: #0F172A;
+      color: #f4f4f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
-  </script>
+  </style>
+</head>
+<body class="bg-[#0F172A] text-zinc-100">
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>`;
 }
@@ -75,14 +78,21 @@ export default async function handler(req: any, res: any) {
     }
   }
 
-  const postId = extractPromptIdFromParam(rawId);
-  const userAgent = req.headers?.['user-agent'] || '';
-  const isBot = isBotRequest(userAgent);
-
+  const postIdOrSlug = extractPromptIdFromParam(rawId) || rawId;
   let finalHtml = '';
 
   try {
-    // 1. Candidate paths to read base HTML (Vite build)
+    // 1. Fetch post data directly from Firestore (supports ID and title slug)
+    let post = null;
+    if (postIdOrSlug) {
+      try {
+        post = await fetchPostByIdServer(postIdOrSlug);
+      } catch (postErr) {
+        console.error('[Post fetch error]', postErr);
+      }
+    }
+
+    // 2. Candidate paths to read base HTML (Vite build)
     const candidatePaths = [
       path.join(process.cwd(), 'dist', 'index.html'),
       path.resolve(__dirname, '../dist/index.html'),
@@ -107,39 +117,19 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // If a normal human user lands here and no rawHtml exists, redirect directly to SPA
-    if (!isBot && !rawHtml) {
-      res.writeHead(302, {
-        Location: `/?prompt=${encodeURIComponent(postId || rawId)}`,
-      });
-      return res.end();
-    }
-
-    // 2. Fetch post data safely
-    let post = null;
-    if (postId || rawId) {
-      try {
-        post = await fetchPostByIdServer(postId || rawId);
-      } catch (postErr) {
-        console.error('[Post fetch error]', postErr);
-      }
-    }
-
     if (rawHtml) {
       try {
-        finalHtml = injectPostMetadataIntoHtml(rawHtml, post, req, postId || rawId);
+        finalHtml = injectPostMetadataIntoHtml(rawHtml, post, req, postIdOrSlug);
       } catch (injectErr) {
         console.error('[Inject error]', injectErr);
-        const coverImg = post ? extractMainCoverImage(post) : '';
-        finalHtml = getEmergencyHtml(postId || rawId, post?.title, post?.shortDescription, coverImg);
+        finalHtml = getFallbackHtml(post, postIdOrSlug);
       }
     } else {
-      const coverImg = post ? extractMainCoverImage(post) : '';
-      finalHtml = getEmergencyHtml(postId || rawId, post?.title, post?.shortDescription, coverImg);
+      finalHtml = getFallbackHtml(post, postIdOrSlug);
     }
   } catch (error: any) {
     console.error('[Vercel Post OG Handler Catch]', error);
-    finalHtml = getEmergencyHtml(postId || rawId);
+    finalHtml = getFallbackHtml(null, postIdOrSlug);
   }
 
   // Always return 200 OK with valid HTML
@@ -158,3 +148,4 @@ export default async function handler(req: any, res: any) {
     } catch (e) {}
   }
 }
+

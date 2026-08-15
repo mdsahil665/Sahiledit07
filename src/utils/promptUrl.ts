@@ -5,36 +5,42 @@ export interface PostLikeItem {
 }
 
 /**
+ * Convert any string or title into a clean SEO-friendly slug
+ * Examples:
+ * - "The Modern Executive" -> "the-modern-executive"
+ * - "🇮🇳 15 August Independence Day 🇮🇳 | Happy Independence Day India | Jai Hind ❤️"
+ *   -> "15-august-independence-day-happy-independence-day-india-jai-hind"
+ */
+export function createSlugFromTitle(title: string): string {
+  if (!title) return '';
+  return title
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, ' ') // strip emojis and special symbols
+    .trim()
+    .replace(/\s+/g, '-') // convert spaces to single hyphen
+    .replace(/-+/g, '-') // collapse consecutive hyphens
+    .replace(/^-+|-+$/g, '') // strip leading and trailing hyphens
+    .substring(0, 80) // limit slug length for clean URLs
+    .replace(/-+$/g, '');
+}
+
+/**
  * Generate clean SEO friendly slug matching promptplum.com style
- * Example: "15-august-independence-day-india-prompt-1786738947556-vugo"
+ * e.g. "https://promptplum.com/prompt/the-modern-executive"
+ * -> "/prompt/the-modern-executive"
  */
 export function getPromptSlug(post: PostLikeItem): string {
-  if (!post || !post.id) return '';
+  if (!post) return '';
   if (post.slug && post.slug.trim()) {
-    return post.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    return createSlugFromTitle(post.slug);
   }
 
-  const rawTitle = (post.title || '').trim();
-  // Strip emojis, symbols, keeping alphanumeric characters
-  const cleanTitle = rawTitle
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, ' ')
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .substring(0, 50)
-    .replace(/-+$/g, '');
-
-  if (cleanTitle && cleanTitle.length > 2) {
-    // If cleanTitle doesn't already contain the id
-    if (!cleanTitle.includes(post.id.toLowerCase())) {
-      return `${cleanTitle}-${post.id}`;
-    }
+  const cleanTitle = createSlugFromTitle(post.title || '');
+  if (cleanTitle && cleanTitle.length >= 2) {
     return cleanTitle;
   }
 
-  return post.id;
+  return post.id || '';
 }
 
 /**
@@ -47,31 +53,18 @@ export function getPromptShareUrl(post: PostLikeItem, origin?: string): string {
 }
 
 /**
- * Extract clean post ID from any URL path or query parameter
- * Handles:
- * - "/prompt/the-modern-executive-prompt-1786738947556-vugo" -> "prompt-1786738947556-vugo"
- * - "/prompt/prompt-1786738947556-vugo" -> "prompt-1786738947556-vugo"
- * - "/post/prompt-1786738947556-vugo" -> "prompt-1786738947556-vugo"
- * - "prompt-1786738947556-vugo" -> "prompt-1786738947556-vugo"
+ * Extract clean post ID or slug from any URL path or query parameter
  */
 export function extractPromptIdFromParam(param: string): string {
   if (!param) return '';
   const decoded = decodeURIComponent(param).trim().replace(/\/+$/, '');
 
-  // 1. Look for prompt-timestamp-hash pattern
+  // 1. Look for prompt-timestamp-hash pattern if embedded
   const promptMatch = decoded.match(/(prompt-[\w-]+)/i);
   if (promptMatch && promptMatch[1]) {
     return promptMatch[1];
   }
 
-  // 2. Check if string ends with an ID after the last hyphen
-  const lastHyphen = decoded.lastIndexOf('-');
-  if (lastHyphen !== -1 && lastHyphen < decoded.length - 2) {
-    const candidateId = decoded.substring(lastHyphen + 1);
-    if (candidateId.length >= 4) {
-      // might be an ID
-    }
-  }
-
   return decoded;
 }
+
