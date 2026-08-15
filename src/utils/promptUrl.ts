@@ -22,8 +22,9 @@ export function getPromptSlug(post: PostLikeItem): string {
     .trim()
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .substring(0, 60);
+    .replace(/^-+|-+$/g, '')
+    .substring(0, 50)
+    .replace(/-+$/g, '');
 
   if (cleanTitle && cleanTitle.length > 2) {
     // If cleanTitle doesn't already contain the id

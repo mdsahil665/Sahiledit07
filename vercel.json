@@ -23,10 +23,24 @@
     },
     {
       "source": "/prompt/:id*",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|facebookcatalog|Facebot|Twitterbot|twitterbot|WhatsApp|whatsapp|TelegramBot|telegrambot|Slackbot|slackbot|Discordbot|discordbot|Pinterest|pinterest|LinkedInBot|linkedinbot|Googlebot|googlebot|bingbot|Baiduspider|yandex|Applebot|applebot|vkShare|redditbot|curl|wget).*"
+        }
+      ],
       "destination": "/api/post-og?id=:id"
     },
     {
       "source": "/post/:id*",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|facebookcatalog|Facebot|Twitterbot|twitterbot|WhatsApp|whatsapp|TelegramBot|telegrambot|Slackbot|slackbot|Discordbot|discordbot|Pinterest|pinterest|LinkedInBot|linkedinbot|Googlebot|googlebot|bingbot|Baiduspider|yandex|Applebot|applebot|vkShare|redditbot|curl|wget).*"
+        }
+      ],
       "destination": "/api/post-og?id=:id"
     },
     {

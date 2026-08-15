@@ -4,6 +4,13 @@ import { fetchPostByIdServer, extractMainCoverImage } from '../server/postServic
 import { injectPostMetadataIntoHtml } from '../server/htmlInjector';
 import { extractPromptIdFromParam } from '../src/utils/promptUrl';
 
+function isBotRequest(userAgent: string): boolean {
+  if (!userAgent) return true;
+  const botPattern =
+    /facebookexternalhit|facebookcatalog|Facebot|Twitterbot|WhatsApp|TelegramBot|Slackbot|Discordbot|Pinterest|LinkedInBot|Googlebot|bingbot|Baiduspider|yandex|Applebot|vkShare|redditbot|bot|crawler|spider|curl|wget/i;
+  return botPattern.test(userAgent);
+}
+
 function getEmergencyHtml(postId: string, title?: string, desc?: string, img?: string) {
   const safeTitle = title ? `${title} - Sahil Edits` : 'Sahil Edits – Premium AI Prompt Library';
   const safeDesc = desc || 'Discover and copy trending AI prompts with 1-click on Sahil Edits.';
@@ -33,13 +40,19 @@ function getEmergencyHtml(postId: string, title?: string, desc?: string, img?: s
   <meta name="twitter:title" content="${safeTitle}" />
   <meta name="twitter:description" content="${safeDesc}" />
   <meta name="twitter:image" content="${safeImg}" />
+  <meta http-equiv="refresh" content="0; url=/?prompt=${encodeURIComponent(postId)}" />
 </head>
-<body class="bg-[#0F172A] text-zinc-100">
-  <div id="root"></div>
+<body class="bg-[#0F172A] text-zinc-100 flex items-center justify-center min-h-screen font-sans">
+  <div class="text-center p-8">
+    <h1 class="text-xl font-bold text-white mb-2">${safeTitle}</h1>
+    <p class="text-zinc-400 mb-4">${safeDesc}</p>
+    <a href="/?prompt=${encodeURIComponent(postId)}" class="inline-block px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition">
+      Open Prompt on Sahil Edits &rarr;
+    </a>
+  </div>
   <script>
-    // If opened directly by user, ensure route opens prompt
-    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/prompt/') && !window.location.pathname.startsWith('/post/')) {
-      window.location.replace('/prompt/${encodeURIComponent(postId)}');
+    if (typeof window !== 'undefined') {
+      window.location.replace('/?prompt=${encodeURIComponent(postId)}');
     }
   </script>
 </body>
@@ -63,10 +76,13 @@ export default async function handler(req: any, res: any) {
   }
 
   const postId = extractPromptIdFromParam(rawId);
+  const userAgent = req.headers?.['user-agent'] || '';
+  const isBot = isBotRequest(userAgent);
+
   let finalHtml = '';
 
   try {
-    // 1. Candidate paths to read base HTML
+    // 1. Candidate paths to read base HTML (Vite build)
     const candidatePaths = [
       path.join(process.cwd(), 'dist', 'index.html'),
       path.resolve(__dirname, '../dist/index.html'),
@@ -91,7 +107,15 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // 2. Fetch post data safely (using clean postId or rawId)
+    // If a normal human user lands here and no rawHtml exists, redirect directly to SPA
+    if (!isBot && !rawHtml) {
+      res.writeHead(302, {
+        Location: `/?prompt=${encodeURIComponent(postId || rawId)}`,
+      });
+      return res.end();
+    }
+
+    // 2. Fetch post data safely
     let post = null;
     if (postId || rawId) {
       try {
