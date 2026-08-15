@@ -1,10 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/*.ts": {
-      "includeFiles": "dist/**"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/payment/create-order",
@@ -27,15 +22,25 @@
       "destination": "/api/post-og"
     },
     {
-      "source": "/post/:id",
+      "source": "/prompt/:id*",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|WhatsApp|TelegramBot|Slackbot|Discordbot|Pinterest|LinkedInBot|Googlebot|bingbot|Baiduspider|yandex|Applebot).*"
+        }
+      ],
       "destination": "/api/post-og?id=:id"
     },
     {
-      "source": "/post/:id/",
-      "destination": "/api/post-og?id=:id"
-    },
-    {
-      "source": "/post/:id/:path*",
+      "source": "/post/:id*",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": ".*(facebookexternalhit|Facebot|Twitterbot|WhatsApp|TelegramBot|Slackbot|Discordbot|Pinterest|LinkedInBot|Googlebot|bingbot|Baiduspider|yandex|Applebot).*"
+        }
+      ],
       "destination": "/api/post-og?id=:id"
     },
     {
@@ -44,4 +49,3 @@
     }
   ]
 }
-

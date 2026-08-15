@@ -43,6 +43,7 @@ import {
   RatingStats,
   DEFAULT_RATING_STATS,
 } from '../services/ratingService';
+import { getPromptShareUrl } from '../utils/promptUrl';
 import { promptStore, getPostCreatedAtMillis, getPostGallery } from '../services/promptStore';
 import { getPostDisplayBadge } from '../services/badgeService';
 import { AdBanner } from './AdBanner';
@@ -430,7 +431,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
     }, 2500);
   };
 
-  const postShareUrl = `${window.location.origin}/post/${encodeURIComponent(post.id)}`;
+  const postShareUrl = getPromptShareUrl(post);
   const shareTitle = encodeURIComponent(`Check out this AI Prompt: ${post.title} on Sahil Edits`);
 
   const shareLinks = {

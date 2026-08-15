@@ -3,6 +3,7 @@ import { PromptPost, Category, DEFAULT_POST_CARD_CONFIG, PostCardConfig } from '
 import { Eye, Copy, Check, Share2, Sparkles, Heart, ArrowUpRight, Images } from 'lucide-react';
 import { promptStore } from '../services/promptStore';
 import { getPostDisplayBadge } from '../services/badgeService';
+import { getPromptShareUrl } from '../utils/promptUrl';
 
 interface PromptCardProps {
   post: PromptPost;
@@ -89,7 +90,7 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    const shareUrl = `${window.location.origin}/post/${encodeURIComponent(post.id)}`;
+    const shareUrl = getPromptShareUrl(post);
     const shareData = {
       title: post.title,
       text: post.shortDescription || post.title,

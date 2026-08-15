@@ -2,12 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import { fetchPostByIdServer, extractMainCoverImage } from '../server/postService';
 import { injectPostMetadataIntoHtml } from '../server/htmlInjector';
+import { extractPromptIdFromParam } from '../src/utils/promptUrl';
 
 function getEmergencyHtml(postId: string, title?: string, desc?: string, img?: string) {
-  const safeTitle = title || 'Sahil Edits – Premium AI Prompt Library';
+  const safeTitle = title ? `${title} - Sahil Edits` : 'Sahil Edits – Premium AI Prompt Library';
   const safeDesc = desc || 'Discover and copy trending AI prompts with 1-click on Sahil Edits.';
   const safeImg = img || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
-  const canonical = postId ? `https://sahiledit.vercel.app/post/${encodeURIComponent(postId)}` : 'https://sahiledit.vercel.app/';
+  const canonical = postId ? `https://sahiledit.vercel.app/prompt/${encodeURIComponent(postId)}` : 'https://sahiledit.vercel.app/';
 
   return `<!doctype html>
 <html lang="en" class="dark">
@@ -35,13 +36,18 @@ function getEmergencyHtml(postId: string, title?: string, desc?: string, img?: s
 </head>
 <body class="bg-[#0F172A] text-zinc-100">
   <div id="root"></div>
-  <script type="module" src="/src/main.tsx"></script>
+  <script>
+    // If opened directly by user, ensure route opens prompt
+    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/prompt/') && !window.location.pathname.startsWith('/post/')) {
+      window.location.replace('/prompt/${encodeURIComponent(postId)}');
+    }
+  </script>
 </body>
 </html>`;
 }
 
 export default async function handler(req: any, res: any) {
-  let postId =
+  let rawId =
     (req.query?.id as string) ||
     (req.query?.postId as string) ||
     (req.query?.prompt as string) ||
@@ -49,13 +55,14 @@ export default async function handler(req: any, res: any) {
     (req.query?.p as string) ||
     '';
 
-  if (!postId && req.url) {
-    const match = req.url.match(/\/post\/([^?#/]+)/i);
+  if (!rawId && req.url) {
+    const match = req.url.match(/\/(?:post|prompt)\/([^?#/]+)/i);
     if (match && match[1]) {
-      postId = decodeURIComponent(match[1]);
+      rawId = decodeURIComponent(match[1]);
     }
   }
 
+  const postId = extractPromptIdFromParam(rawId);
   let finalHtml = '';
 
   try {
@@ -84,11 +91,11 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // 2. Fetch post data safely
+    // 2. Fetch post data safely (using clean postId or rawId)
     let post = null;
-    if (postId) {
+    if (postId || rawId) {
       try {
-        post = await fetchPostByIdServer(postId);
+        post = await fetchPostByIdServer(postId || rawId);
       } catch (postErr) {
         console.error('[Post fetch error]', postErr);
       }
@@ -96,19 +103,19 @@ export default async function handler(req: any, res: any) {
 
     if (rawHtml) {
       try {
-        finalHtml = injectPostMetadataIntoHtml(rawHtml, post, req, postId);
+        finalHtml = injectPostMetadataIntoHtml(rawHtml, post, req, postId || rawId);
       } catch (injectErr) {
         console.error('[Inject error]', injectErr);
         const coverImg = post ? extractMainCoverImage(post) : '';
-        finalHtml = getEmergencyHtml(postId, post?.title, post?.shortDescription, coverImg);
+        finalHtml = getEmergencyHtml(postId || rawId, post?.title, post?.shortDescription, coverImg);
       }
     } else {
       const coverImg = post ? extractMainCoverImage(post) : '';
-      finalHtml = getEmergencyHtml(postId, post?.title, post?.shortDescription, coverImg);
+      finalHtml = getEmergencyHtml(postId || rawId, post?.title, post?.shortDescription, coverImg);
     }
   } catch (error: any) {
     console.error('[Vercel Post OG Handler Catch]', error);
-    finalHtml = getEmergencyHtml(postId);
+    finalHtml = getEmergencyHtml(postId || rawId);
   }
 
   // Always return 200 OK with valid HTML
@@ -127,5 +134,3 @@ export default async function handler(req: any, res: any) {
     } catch (e) {}
   }
 }
-
-

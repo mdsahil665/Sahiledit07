@@ -14,6 +14,7 @@ try {
 
 export interface DecodedPost {
   id: string;
+  slug?: string;
   title: string;
   shortDescription: string;
   fullPrompt?: string;
@@ -131,13 +132,20 @@ function sanitizeImageUrl(url: string): string {
 const postCache = new Map<string, { post: DecodedPost | null; timestamp: number }>();
 const CACHE_TTL_MS = 60 * 1000; // 1 minute
 
-export async function fetchPostByIdServer(postId: string): Promise<DecodedPost | null> {
-  if (!postId || typeof postId !== 'string') return null;
-  const cleanId = postId.trim();
-  if (!cleanId) return null;
+export async function fetchPostByIdServer(postIdOrSlug: string): Promise<DecodedPost | null> {
+  if (!postIdOrSlug || typeof postIdOrSlug !== 'string') return null;
+  let rawParam = postIdOrSlug.trim();
+  if (!rawParam) return null;
+
+  // Extract ID if param is a slug (e.g. "viral-prompt-prompt-1786305758866-3twf")
+  let cleanId = rawParam;
+  const promptMatch = rawParam.match(/(prompt-[\w-]+)/i);
+  if (promptMatch && promptMatch[1]) {
+    cleanId = promptMatch[1];
+  }
 
   // Check cache first
-  const cached = postCache.get(cleanId);
+  const cached = postCache.get(cleanId) || postCache.get(rawParam);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return cached.post;
   }
@@ -149,10 +157,17 @@ export async function fetchPostByIdServer(postId: string): Promise<DecodedPost |
   const databaseId = (appletConfig as any)?.firestoreDatabaseId || 'ai-studio-sahiledits-c87baa5c-a269-446e-ae1f-2e996ad4358d';
   const apiKey = (appletConfig as any)?.apiKey || 'AIzaSyCCV05qIA8g_NXcxOI8F-71zyWI62UQeDQ';
 
+  const idsToTry = [cleanId];
+  if (cleanId !== rawParam) {
+    idsToTry.push(rawParam);
+  }
+
   const collections = ['prompts', 'posts'];
-  for (const col of collections) {
+  for (const id of idsToTry) {
     if (foundPost) break;
-    const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/${col}/${encodeURIComponent(cleanId)}${apiKey ? `?key=${apiKey}` : ''}`;
+    for (const col of collections) {
+      if (foundPost) break;
+      const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents/${col}/${encodeURIComponent(id)}${apiKey ? `?key=${apiKey}` : ''}`;
 
     try {
       const controller = new AbortController();
@@ -180,6 +195,7 @@ export async function fetchPostByIdServer(postId: string): Promise<DecodedPost |
       }
     } catch (err: any) {
       // Firestore network notice (fallback will handle)
+    }
     }
   }
 

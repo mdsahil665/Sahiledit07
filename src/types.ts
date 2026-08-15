@@ -61,6 +61,7 @@ export type BadgeType = 'NEW' | 'AI PROMPT' | 'PHOTO PROMPT' | 'CREATIVE' | 'TRE
 
 export interface PromptPost {
   id: string;
+  slug?: string;
   title: string;
   shortDescription: string;
   fullPrompt: string;

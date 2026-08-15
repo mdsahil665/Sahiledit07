@@ -60,7 +60,8 @@ export function injectPostMetadataIntoHtml(
   }
 
   const baseUrl = getBaseUrl(req);
-  const canonicalUrl = `${baseUrl}/post/${encodeURIComponent(post.id)}`;
+  const promptSlug = post.slug || post.id;
+  const canonicalUrl = `${baseUrl}/prompt/${encodeURIComponent(promptSlug)}`;
 
   const postTitle = (post.seoTitle || post.title || 'AI Prompt').trim();
   const pageTitle = postTitle.toLowerCase().includes('sahil edits') ? postTitle : `${postTitle} – Sahil Edits`;

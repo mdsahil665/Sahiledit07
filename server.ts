@@ -86,10 +86,17 @@ async function startServer() {
   const handlePostRequest = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
     try {
       let postId = req.params?.id || "";
-      if (!postId && req.path.startsWith("/post/")) {
-        const parts = req.path.split("/post/")[1]?.split("/");
-        if (parts && parts[0]) {
-          postId = decodeURIComponent(parts[0]);
+      if (!postId) {
+        if (req.path.startsWith("/prompt/")) {
+          const parts = req.path.split("/prompt/")[1]?.split("/");
+          if (parts && parts[0]) {
+            postId = decodeURIComponent(parts[0]);
+          }
+        } else if (req.path.startsWith("/post/")) {
+          const parts = req.path.split("/post/")[1]?.split("/");
+          if (parts && parts[0]) {
+            postId = decodeURIComponent(parts[0]);
+          }
         }
       }
       if (!postId && (req.query.prompt || req.query.post || req.query.p)) {
@@ -116,7 +123,9 @@ async function startServer() {
     }
   };
 
-  // Explicit Post Deep-Link Routes (handles crawlers and direct visits)
+  // Explicit Prompt and Post Deep-Link Routes (handles crawlers and direct visits)
+  app.get("/prompt/:id", handlePostRequest);
+  app.get("/prompt/:id/*", handlePostRequest);
   app.get("/post/:id", handlePostRequest);
   app.get("/post/:id/*", handlePostRequest);
 

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { PromptPost, Category, CustomPage } from '../types';
 import { getPostMainCoverImage } from '../lib/imageUtils';
+import { getPromptShareUrl } from '../utils/promptUrl';
 
 interface SEOHelperProps {
   activePrompt: PromptPost | null;
@@ -42,7 +43,7 @@ export const SEOHelper: React.FC<SEOHelperProps> = ({
         activePrompt.metaDescription ||
         activePrompt.shortDescription ||
         `Copy this high-precision AI prompt for ${activePrompt.categoryName || 'ChatGPT & Midjourney'}. 1-click copy on Sahil Edits.`;
-      canonical = `${BASE_URL}/post/${encodeURIComponent(activePrompt.id)}`;
+      canonical = getPromptShareUrl(activePrompt);
       ogImage = getPostMainCoverImage(activePrompt);
 
       jsonLdData = {
