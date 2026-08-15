@@ -1,8 +1,17 @@
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { fetchPostByIdServer, extractMainCoverImage } from '../server/postService';
 import { injectPostMetadataIntoHtml, escapeHtml, cleanDescription } from '../server/htmlInjector';
 import { extractPromptIdFromParam, getPromptSlug } from '../src/utils/promptUrl';
+
+let currentDir = process.cwd();
+try {
+  const currentFile = fileURLToPath(import.meta.url);
+  currentDir = path.dirname(currentFile);
+} catch (e) {
+  // fallback to process.cwd()
+}
 
 function getFallbackHtml(post: any, rawSlugOrId: string) {
   const postTitle = (post?.seoTitle || post?.title || 'AI Prompt').trim();
@@ -95,12 +104,13 @@ export default async function handler(req: any, res: any) {
     // 2. Candidate paths to read base HTML (Vite build)
     const candidatePaths = [
       path.join(process.cwd(), 'dist', 'index.html'),
-      path.resolve(__dirname, '../dist/index.html'),
-      path.resolve(__dirname, '../../dist/index.html'),
+      path.resolve(currentDir, '../dist/index.html'),
+      path.resolve(currentDir, '../../dist/index.html'),
       path.join(process.cwd(), 'index.html'),
-      path.resolve(__dirname, '../index.html'),
-      path.resolve(__dirname, '../../index.html'),
+      path.resolve(currentDir, '../index.html'),
+      path.resolve(currentDir, '../../index.html'),
     ];
+
 
     let rawHtml = '';
     for (const candidate of candidatePaths) {

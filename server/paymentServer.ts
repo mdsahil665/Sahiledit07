@@ -2,21 +2,24 @@ import crypto from "crypto";
 import Razorpay from "razorpay";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
-import appletConfig from "../firebase-applet-config.json" with { type: "json" };
+
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || "gen-lang-client-0103668196";
+const FIRESTORE_DATABASE_ID = process.env.FIRESTORE_DATABASE_ID || process.env.VITE_FIRESTORE_DATABASE_ID || "ai-studio-sahiledits-c87baa5c-a269-446e-ae1f-2e996ad4358d";
 
 // Initialize Firebase Admin DB safely
 let adminDb: Firestore | null = null;
 try {
   if (!getApps().length) {
     initializeApp({
-      projectId: process.env.FIREBASE_PROJECT_ID || appletConfig.projectId,
+      projectId: FIREBASE_PROJECT_ID,
     });
   }
-  const dbId = appletConfig.firestoreDatabaseId || "(default)";
+  const dbId = FIRESTORE_DATABASE_ID;
   adminDb = dbId && dbId !== "(default)" ? getFirestore(dbId) : getFirestore();
 } catch (e) {
   console.warn("[Payment Backend] Firebase Admin initialization notice:", e);
 }
+
 
 // Default Fallback Razorpay Keys
 const DEFAULT_RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || "rzp_test_sahiledits2026";

@@ -1,17 +1,12 @@
 import { INITIAL_PROMPTS } from '../src/data/initialData';
 import { createSlugFromTitle, getPromptSlug } from '../src/utils/promptUrl';
 
-let appletConfig: any = {};
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  appletConfig = require('../firebase-applet-config.json');
-} catch (e) {
-  appletConfig = {
-    projectId: 'gen-lang-client-0103668196',
-    firestoreDatabaseId: 'ai-studio-sahiledits-c87baa5c-a269-446e-ae1f-2e996ad4358d',
-    apiKey: 'AIzaSyCCV05qIA8g_NXcxOI8F-71zyWI62UQeDQ',
-  };
-}
+const FIREBASE_CONFIG = {
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0103668196',
+  firestoreDatabaseId: process.env.VITE_FIRESTORE_DATABASE_ID || process.env.FIRESTORE_DATABASE_ID || 'ai-studio-sahiledits-c87baa5c-a269-446e-ae1f-2e996ad4358d',
+  apiKey: process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || 'AIzaSyCCV05qIA8g_NXcxOI8F-71zyWI62UQeDQ',
+};
+
 
 
 export interface DecodedPost {
@@ -156,9 +151,10 @@ export async function fetchPostByIdServer(postIdOrSlug: string): Promise<Decoded
 
   let foundPost: DecodedPost | null = null;
 
-  const projectId = (appletConfig as any)?.projectId || 'gen-lang-client-0103668196';
-  const databaseId = (appletConfig as any)?.firestoreDatabaseId || 'ai-studio-sahiledits-c87baa5c-a269-446e-ae1f-2e996ad4358d';
-  const apiKey = (appletConfig as any)?.apiKey || 'AIzaSyCCV05qIA8g_NXcxOI8F-71zyWI62UQeDQ';
+  const projectId = FIREBASE_CONFIG.projectId;
+  const databaseId = FIREBASE_CONFIG.firestoreDatabaseId;
+  const apiKey = FIREBASE_CONFIG.apiKey;
+
 
   // 1. If cleanId looks like a direct document ID (e.g. prompt-1786...), try direct Firestore GET first
   if (cleanId.startsWith('prompt-')) {
