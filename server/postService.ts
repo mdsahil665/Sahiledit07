@@ -134,9 +134,9 @@ export async function fetchPostByIdServer(postId: string): Promise<DecodedPost |
   let foundPost: DecodedPost | null = null;
 
   // 1. Try Firestore REST API (check prompts collection first, then posts)
-  const projectId = appletConfig.projectId || 'gen-lang-client-0103668196';
-  const databaseId = appletConfig.firestoreDatabaseId || '(default)';
-  const apiKey = appletConfig.apiKey || '';
+  const projectId = (appletConfig as any)?.projectId || 'gen-lang-client-0103668196';
+  const databaseId = (appletConfig as any)?.firestoreDatabaseId || 'ai-studio-sahiledits-c87baa5c-a269-446e-ae1f-2e996ad4358d';
+  const apiKey = (appletConfig as any)?.apiKey || 'AIzaSyCCV05qIA8g_NXcxOI8F-71zyWI62UQeDQ';
 
   const collections = ['prompts', 'posts'];
   for (const col of collections) {
