@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Category } from '../../types';
 import { CategoryIcon } from '../CategoryIcon';
-import { X, Layers, Save } from 'lucide-react';
+import { X, Layers, Save, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../Toast';
 
@@ -99,7 +99,17 @@ export const CategoryFormModal: React.FC<CategoryFormModalProps> = ({
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center border border-blue-500/20">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 text-xs font-bold transition-all cursor-pointer border border-zinc-200 dark:border-zinc-700 shrink-0"
+                title="Back to Categories"
+              >
+                <ArrowLeft className="w-4 h-4 text-blue-500" />
+                <span className="hidden sm:inline">Back</span>
+              </button>
+
+              <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-500 hidden sm:flex items-center justify-center border border-blue-500/20">
                 <Layers className="w-5 h-5" />
               </div>
               <h3 className="font-bold text-lg text-zinc-900 dark:text-white">

@@ -120,14 +120,17 @@ function AppContent() {
       const search = window.location.search.toLowerCase();
       const hash = window.location.hash.toLowerCase();
       const path = window.location.pathname.toLowerCase();
+      const isAdminRoute = search.includes('admin') || hash.includes('admin') || path.includes('/admin');
 
-      if (search.includes('admin') || hash.includes('admin') || path.includes('/admin')) {
+      if (isAdminRoute) {
         if (isAdmin) {
           setShowAdminDashboard(true);
         } else {
           setShowLoginModal(true);
           showToast('Admin Authentication Required', 'Please log in with an Admin account.', 'error');
         }
+      } else {
+        setShowAdminDashboard(false);
       }
 
       if (search.includes('premium') || hash.includes('premium') || path.includes('/premium')) {
@@ -135,8 +138,17 @@ function AppContent() {
       }
     };
 
+    const handlePopState = (event: PopStateEvent) => {
+      // If a modal was open and back was triggered, dismiss modal without exiting admin
+      if (event.state?.type !== 'admin-modal') {
+        setEditingPostModal(null);
+        setEditingCategoryModal(null);
+      }
+      checkUrlRoutes();
+    };
+
     checkUrlRoutes();
-    window.addEventListener('popstate', checkUrlRoutes);
+    window.addEventListener('popstate', handlePopState);
     window.addEventListener('hashchange', checkUrlRoutes);
 
     // Keyboard shortcut (Ctrl+Shift+A / Cmd+Shift+A)
@@ -144,6 +156,9 @@ function AppContent() {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
         e.preventDefault();
         if (isAdmin) {
+          if (!window.location.pathname.startsWith('/admin')) {
+            window.history.pushState({ type: 'admin', tab: 'dashboard' }, '', '/admin/dashboard');
+          }
           setShowAdminDashboard(true);
         } else {
           setShowLoginModal(true);
@@ -155,7 +170,7 @@ function AppContent() {
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      window.removeEventListener('popstate', checkUrlRoutes);
+      window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('hashchange', checkUrlRoutes);
       window.removeEventListener('keydown', handleKeyDown);
     };
@@ -561,11 +576,28 @@ function AppContent() {
           categories={categories}
           stats={stats}
           activities={promptStore.getActivities()}
-          onAddPost={() => setEditingPostModal('new')}
-          onEditPost={(p) => setEditingPostModal(p)}
-          onAddCategory={() => setEditingCategoryModal('new')}
-          onEditCategory={(c) => setEditingCategoryModal(c)}
-          onClose={() => setShowAdminDashboard(false)}
+          onAddPost={() => {
+            window.history.pushState({ type: 'admin-modal', modal: 'add-post' }, '', window.location.href);
+            setEditingPostModal('new');
+          }}
+          onEditPost={(p) => {
+            window.history.pushState({ type: 'admin-modal', modal: 'edit-post', postId: p.id }, '', window.location.href);
+            setEditingPostModal(p);
+          }}
+          onAddCategory={() => {
+            window.history.pushState({ type: 'admin-modal', modal: 'add-category' }, '', window.location.href);
+            setEditingCategoryModal('new');
+          }}
+          onEditCategory={(c) => {
+            window.history.pushState({ type: 'admin-modal', modal: 'edit-category', catId: c.id }, '', window.location.href);
+            setEditingCategoryModal(c);
+          }}
+          onClose={() => {
+            setShowAdminDashboard(false);
+            if (window.location.pathname.startsWith('/admin') || window.location.search.includes('admin') || window.location.hash.includes('admin')) {
+              window.history.pushState({}, '', '/');
+            }
+          }}
           onRefreshData={refreshData}
           onOpenPreviewModal={(p) => setActivePromptModal(p)}
           onOpenPageModal={(page) => setActivePageModal(page)}
@@ -576,15 +608,35 @@ function AppContent() {
           isOpen={editingPostModal !== null}
           post={typeof editingPostModal === 'object' ? editingPostModal : null}
           categories={categories}
-          onClose={() => setEditingPostModal(null)}
-          onSave={handleSavePost}
+          onClose={() => {
+            setEditingPostModal(null);
+            if (window.history.state?.type === 'admin-modal') {
+              window.history.back();
+            }
+          }}
+          onSave={(postData, existingId) => {
+            handleSavePost(postData, existingId);
+            if (window.history.state?.type === 'admin-modal') {
+              window.history.back();
+            }
+          }}
         />
 
         <CategoryFormModal
           isOpen={editingCategoryModal !== null}
           category={typeof editingCategoryModal === 'object' ? editingCategoryModal : null}
-          onClose={() => setEditingCategoryModal(null)}
-          onSave={handleSaveCategory}
+          onClose={() => {
+            setEditingCategoryModal(null);
+            if (window.history.state?.type === 'admin-modal') {
+              window.history.back();
+            }
+          }}
+          onSave={(catData) => {
+            handleSaveCategory(catData);
+            if (window.history.state?.type === 'admin-modal') {
+              window.history.back();
+            }
+          }}
         />
 
         <PromptModal
@@ -703,6 +755,9 @@ function AppContent() {
             onOpenProfile={() => setShowProfileModal(true)}
             onOpenAdminDashboard={() => {
               if (isAdmin) {
+                if (!window.location.pathname.startsWith('/admin')) {
+                  window.history.pushState({ type: 'admin', tab: 'dashboard' }, '', '/admin/dashboard');
+                }
                 setShowAdminDashboard(true);
               } else {
                 setShowLoginModal(true);
@@ -1028,7 +1083,12 @@ function AppContent() {
         isOpen={showProfileModal}
         onClose={() => setShowProfileModal(false)}
         onOpenPrompt={handleOpenPromptModal}
-        onOpenAdminDashboard={() => setShowAdminDashboard(true)}
+        onOpenAdminDashboard={() => {
+          if (!window.location.pathname.startsWith('/admin')) {
+            window.history.pushState({ type: 'admin', tab: 'dashboard' }, '', '/admin/dashboard');
+          }
+          setShowAdminDashboard(true);
+        }}
       />
 
       {/* Add / Edit Post Form Modal */}

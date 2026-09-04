@@ -29,13 +29,13 @@ export const INITIAL_CATEGORIES: Category[] = [
     description: 'Photorealistic, 3D render & artistic prompts for Midjourney, Flux & DALL-E 3.'
   },
   {
-    id: 'video-prompt',
-    name: 'Video Prompt',
-    slug: 'video-prompt',
+    id: 'video',
+    name: 'Video',
+    slug: 'video',
     icon: 'Video',
     color: 'rose',
     bgLight: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
-    description: 'Cinematic camera movement and motion prompts for Runway Gen-3, Luma & Sora.'
+    description: 'Cinematic AI video generation prompts for Runway Gen-3, Luma Dream Machine, Sora, Kling & Pika.'
   }
 ];
 

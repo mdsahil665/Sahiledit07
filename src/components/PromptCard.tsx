@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { PromptPost, Category, DEFAULT_POST_CARD_CONFIG, PostCardConfig } from '../types';
-import { Eye, Copy, Check, Share2, Sparkles, Heart, ArrowUpRight, Images } from 'lucide-react';
+import { Eye, Copy, Check, Share2, Sparkles, Heart, ArrowUpRight, Images, Film } from 'lucide-react';
 import { promptStore } from '../services/promptStore';
 import { getPostDisplayBadge } from '../services/badgeService';
 import { getPromptShareUrl } from '../utils/promptUrl';
+import { getOptimizedDisplayUrl } from '../lib/imageUtils';
 
 interface PromptCardProps {
   post: PromptPost;
@@ -76,7 +77,7 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
 
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const promptToCopy = post.fullPrompt || post.shortDescription || post.title;
+    const promptToCopy = post.photoPrompt || post.fullPrompt || post.videoPrompt || post.shortDescription || post.title;
     if (promptToCopy) {
       navigator.clipboard.writeText(promptToCopy);
       promptStore.incrementCopies(post.id);
@@ -150,25 +151,46 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
         <div className="absolute inset-0 w-full h-full bg-slate-950 overflow-hidden">
           {/* Ambient blurred backdrop fill */}
           <img
-            src={coverImageUrl}
+            src={getOptimizedDisplayUrl(coverImageUrl, { width: 120, quality: '60' })}
             alt=""
             aria-hidden="true"
             className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-35 scale-125 select-none pointer-events-none"
           />
 
-          {/* Main Subject Image - Always Sharp and Bright */}
-          <img
-            src={coverImageUrl}
-            alt={post.title}
-            loading="lazy"
-            decoding="async"
-            style={{ opacity: (cardConfig.imageOpacity ?? 100) / 100 }}
-            className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ease-out brightness-100 contrast-100"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src =
-                'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80';
-            }}
-          />
+          {/* Main Subject Image - Always Sharp and Bright (or Cinematic Video Frame if image omitted) */}
+          {coverImageUrl ? (
+            <img
+              src={getOptimizedDisplayUrl(coverImageUrl, { width: 800, quality: '85' })}
+              alt={post.title}
+              loading="lazy"
+              decoding="async"
+              style={{ opacity: (cardConfig.imageOpacity ?? 100) / 100 }}
+              className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ease-out brightness-100 contrast-100"
+              onError={(e) => {
+                if (post.postType === 'video_prompt') {
+                  (e.target as HTMLElement).style.display = 'none';
+                } else {
+                  (e.target as HTMLImageElement).src =
+                    'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80';
+                }
+              }}
+            />
+          ) : post.postType === 'video_prompt' ? (
+            <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-slate-950 via-zinc-900 to-rose-950/40 flex flex-col items-center justify-center p-6 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-rose-500/20 border border-rose-500/30 text-rose-400 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300">
+                <Film className="w-7 h-7 text-rose-400" />
+              </div>
+              <span className="mt-3 px-3 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[11px] font-black uppercase tracking-wider">
+                🎬 VIDEO PROMPT
+              </span>
+            </div>
+          ) : (
+            <img
+              src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80"
+              alt={post.title}
+              className="w-full h-full object-cover"
+            />
+          )}
 
           {/* Permanent Overlay is disabled by default to keep image 100% clear. Only rendered if admin explicitly turns it ON */}
           {cardConfig.imageOverlay && (
@@ -194,7 +216,9 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
             {cardConfig.badgeVisible !== false && badgeResult && (
               <span
                 className={`px-3 py-1 rounded-full backdrop-blur-md text-[10px] sm:text-[11px] font-extrabold tracking-wider uppercase shadow-md border flex items-center gap-1.5 ${
-                  badgeResult.badgeType === 'NEW'
+                  badgeResult.badgeType === 'VIDEO PROMPT' || badgeResult.badgeType === 'VIDEO'
+                    ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white border-rose-400 shadow-rose-600/30'
+                    : badgeResult.badgeType === 'NEW'
                     ? 'bg-emerald-500 text-white border-emerald-400 shadow-emerald-500/30'
                     : badgeResult.badgeType === 'PHOTO PROMPT'
                     ? 'bg-sky-500 text-white border-sky-400 shadow-sky-500/30'
@@ -214,20 +238,24 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
                 {badgeResult.badgeType === 'NEW' && (
                   <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                 )}
-                <Sparkles
-                  className={`w-3 h-3 ${
-                    badgeResult.badgeType === 'PREMIUM'
-                      ? 'text-slate-950 fill-slate-950'
-                      : badgeResult.badgeType === 'NEW' ||
-                        badgeResult.badgeType === 'PHOTO PROMPT' ||
-                        badgeResult.badgeType === 'CREATIVE' ||
-                        badgeResult.badgeType === 'TRENDING' ||
-                        badgeResult.badgeType === 'HOT' ||
-                        badgeResult.badgeType === 'AI PROMPT'
-                      ? 'text-white fill-white'
-                      : 'text-amber-500 fill-amber-500'
-                  }`}
-                />
+                {badgeResult.badgeType === 'VIDEO PROMPT' || badgeResult.badgeType === 'VIDEO' ? (
+                  <Film className="w-3 h-3 text-white fill-white" />
+                ) : (
+                  <Sparkles
+                    className={`w-3 h-3 ${
+                      badgeResult.badgeType === 'PREMIUM'
+                        ? 'text-slate-950 fill-slate-950'
+                        : badgeResult.badgeType === 'NEW' ||
+                          badgeResult.badgeType === 'PHOTO PROMPT' ||
+                          badgeResult.badgeType === 'CREATIVE' ||
+                          badgeResult.badgeType === 'TRENDING' ||
+                          badgeResult.badgeType === 'HOT' ||
+                          badgeResult.badgeType === 'AI PROMPT'
+                        ? 'text-white fill-white'
+                        : 'text-amber-500 fill-amber-500'
+                    }`}
+                  />
+                )}
                 <span className="truncate max-w-[120px]">{badgeResult.label}</span>
               </span>
             )}
@@ -266,6 +294,13 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
           }}
         >
           <div className="space-y-1">
+            {post.postType === 'video_prompt' && (
+              <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-rose-600">
+                <Film className="w-3 h-3 text-rose-600" />
+                <span>VIDEO PROMPT</span>
+              </div>
+            )}
+
             {/* Post Title */}
             {cardConfig.titleVisible !== false && (
               <h2 className="text-base sm:text-lg font-bold text-slate-900 group-hover:text-blue-600 transition-colors duration-200 leading-snug line-clamp-1 tracking-tight">

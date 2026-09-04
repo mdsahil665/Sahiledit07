@@ -1,6 +1,7 @@
 import React from 'react';
 import { PromptPost } from '../../types';
 import { Heart, Share2, Eye, Star, TrendingUp, Sparkles, ArrowUpRight } from 'lucide-react';
+import { getOptimizedDisplayUrl } from '../../lib/imageUtils';
 
 interface EngagementSectionProps {
   type: 'likes' | 'shares' | 'views' | 'ratings';
@@ -103,7 +104,7 @@ export const EngagementSection: React.FC<EngagementSectionProps> = ({ type, post
                     #{index + 1}
                   </span>
                   <img
-                    src={post.imageUrl}
+                    src={getOptimizedDisplayUrl(post.imageUrl, { width: 100, height: 100, crop: 'fill' })}
                     alt={post.title}
                     className="w-12 h-12 rounded-xl object-cover shrink-0 border border-zinc-800"
                   />

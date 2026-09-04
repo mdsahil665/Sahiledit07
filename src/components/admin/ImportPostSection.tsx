@@ -20,6 +20,7 @@ import {
 import { motion } from 'motion/react';
 import { useToast } from '../Toast';
 import { promptStore } from '../../services/promptStore';
+import { downloadImage } from '../../lib/imageUtils';
 
 interface ImportPostSectionProps {
   isOpen: boolean;
@@ -196,22 +197,12 @@ export const ImportPostSection: React.FC<ImportPostSectionProps> = ({
     }
 
     try {
-      showToast('Downloading Image...', 'Preparing image for saving to device', 'info');
-      const response = await fetch(targetUrl);
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = `imported_prompt_image_${Date.now()}.jpg`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
-      showToast('Saved to Device', 'Image saved successfully to downloads folder.');
+      showToast('Downloading Image...', 'Fetching original resolution image...', 'info');
+      await downloadImage(targetUrl, title.trim() || `imported_prompt_${Date.now()}`);
+      showToast('Saved to Device', 'Original image saved successfully to downloads.');
     } catch {
-      // Fallback
       window.open(targetUrl, '_blank');
-      showToast('Opened Image', 'Image opened in new tab. Long press to save on mobile.');
+      showToast('Opened Image', 'Image opened in new tab.');
     }
   };
 

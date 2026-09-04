@@ -801,8 +801,14 @@ class PromptStore {
       if (dataToSave.imageUrl && dataToSave.imageUrl.startsWith('data:image/') && dataToSave.imageUrl.length > 500000) {
         dataToSave.imageUrl = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
       }
+      const cleanDataToSave: Record<string, any> = {};
+      for (const [k, v] of Object.entries(dataToSave)) {
+        if (v !== undefined) {
+          cleanDataToSave[k] = v;
+        }
+      }
       await setDoc(doc(db, 'prompts', id), {
-        ...dataToSave,
+        ...cleanDataToSave,
         likes: newPost.likes,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -933,6 +939,9 @@ class PromptStore {
       if (cleanUpdates.timerOverride !== undefined) updateDataForFirestore.timerOverride = cleanUpdates.timerOverride;
       if (cleanUpdates.cardConfig !== undefined) updateDataForFirestore.cardConfig = cleanUpdates.cardConfig;
       if (cleanUpdates.likes !== undefined) updateDataForFirestore.likes = cleanUpdates.likes;
+      if (cleanUpdates.postType !== undefined) updateDataForFirestore.postType = cleanUpdates.postType;
+      if (cleanUpdates.videoPrompt !== undefined) updateDataForFirestore.videoPrompt = cleanUpdates.videoPrompt;
+      if (cleanUpdates.photoPrompt !== undefined) updateDataForFirestore.photoPrompt = cleanUpdates.photoPrompt;
 
       // Use updateDoc exclusively to modify the existing Firestore document
       await updateDoc(doc(db, 'prompts', id), updateDataForFirestore);
@@ -1193,6 +1202,23 @@ class PromptStore {
 
   // --- CATEGORIES ---
   public getCategories(): Category[] {
+    const hasVideo = this.categoriesCache.some(
+      (c) => c.id === 'video' || c.id === 'video-prompt' || c.slug === 'video' || c.slug === 'video-prompt' || c.name.toLowerCase() === 'video'
+    );
+    if (!hasVideo) {
+      return [
+        ...this.categoriesCache,
+        {
+          id: 'video',
+          name: 'Video',
+          slug: 'video',
+          icon: 'Video',
+          color: 'rose',
+          bgLight: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+          description: 'Cinematic AI video generation prompts for Runway Gen-3, Luma Dream Machine, Sora, Kling & Pika.'
+        }
+      ];
+    }
     return this.categoriesCache;
   }
 

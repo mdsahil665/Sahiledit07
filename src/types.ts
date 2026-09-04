@@ -57,14 +57,19 @@ export const DEFAULT_POST_CARD_CONFIG: PostCardConfig = {
 };
 
 export type BadgeMode = 'automatic' | 'none' | 'manual';
-export type BadgeType = 'NEW' | 'AI PROMPT' | 'PHOTO PROMPT' | 'CREATIVE' | 'TRENDING' | 'HOT' | 'PREMIUM' | string;
+export type BadgeType = 'NEW' | 'AI PROMPT' | 'PHOTO PROMPT' | 'VIDEO PROMPT' | 'VIDEO' | 'CREATIVE' | 'TRENDING' | 'HOT' | 'PREMIUM' | string;
+
+export type PostType = 'photo_prompt' | 'video_prompt';
 
 export interface PromptPost {
   id: string;
+  postType?: PostType;
   slug?: string;
   title: string;
   shortDescription: string;
   fullPrompt: string;
+  photoPrompt?: string;
+  videoPrompt?: string;
   categoryId: CategoryId;
   categoryName?: string;
   tags: string[];

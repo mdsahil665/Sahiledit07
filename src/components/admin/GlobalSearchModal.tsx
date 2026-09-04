@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PromptPost, Category, CustomPage } from '../../types';
 import { Search, Sparkles, Layers, FileText, Settings, X, ArrowRight, ShieldCheck } from 'lucide-react';
 import { AdminTab } from './AdminSidebar';
+import { getOptimizedDisplayUrl } from '../../lib/imageUtils';
 
 interface GlobalSearchModalProps {
   isOpen: boolean;
@@ -166,7 +167,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
                     <img
-                      src={post.imageUrl}
+                      src={getOptimizedDisplayUrl(post.imageUrl, { width: 80, height: 80, crop: 'fill' })}
                       alt={post.title}
                       className="w-10 h-10 rounded-xl object-cover shrink-0 border border-zinc-800"
                     />

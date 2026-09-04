@@ -24,11 +24,13 @@ import {
   Star,
   Tag,
   Zap,
+  Film,
+  Video,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../Toast';
 import { promptStore, getPostGallery } from '../../services/promptStore';
-import { compressImageFile, compressDataUrl } from '../../lib/imageUtils';
+import { compressImageFile, compressDataUrl, getCloudinaryOriginalUrl, getOptimizedDisplayUrl } from '../../lib/imageUtils';
 
 interface PostFormModalProps {
   isOpen: boolean;
@@ -54,7 +56,9 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
   const [newUrlInput, setNewUrlInput] = useState('');
   const [title, setTitle] = useState('');
   const [shortDescription, setShortDescription] = useState('');
-  const [fullPrompt, setFullPrompt] = useState('');
+  const [photoPrompt, setPhotoPrompt] = useState('');
+  const [videoPrompt, setVideoPrompt] = useState('');
+  const [activePromptTab, setActivePromptTab] = useState<'photo' | 'video'>('photo');
   const [categoryId, setCategoryId] = useState('');
   const [tagsInput, setTagsInput] = useState('');
   const [seoTitle, setSeoTitle] = useState('');
@@ -86,7 +90,27 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       setImageUrl(existingImgs[0] || post.imageUrl || '');
       setTitle(post.title || '');
       setShortDescription(post.shortDescription || '');
-      setFullPrompt(post.fullPrompt || '');
+
+      // Load photo prompt & video prompt safely, preserving existing data
+      const existingPhotoPrompt =
+        post.photoPrompt ||
+        (post.postType !== 'video_prompt' ? post.fullPrompt : '') ||
+        '';
+      const existingVideoPrompt =
+        post.videoPrompt ||
+        (post.postType === 'video_prompt' ? post.fullPrompt : '') ||
+        '';
+
+      setPhotoPrompt(existingPhotoPrompt);
+      setVideoPrompt(existingVideoPrompt);
+
+      // Default active tab to video if video-only post, otherwise photo
+      if (existingVideoPrompt && !existingPhotoPrompt) {
+        setActivePromptTab('video');
+      } else {
+        setActivePromptTab('photo');
+      }
+
       setCategoryId(post.categoryId || (categories[0]?.id || ''));
       setTagsInput(post.tags ? post.tags.join(', ') : '');
       setSeoTitle(post.seoTitle || '');
@@ -111,7 +135,9 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       setImageUrl('');
       setTitle('');
       setShortDescription('');
-      setFullPrompt('');
+      setPhotoPrompt('');
+      setVideoPrompt('');
+      setActivePromptTab('photo');
       setCategoryId(categories[0]?.id || 'chatgpt');
       setTagsInput('');
       setSeoTitle('');
@@ -200,11 +226,11 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
 
   const handleAddUrlToGallery = () => {
     if (!newUrlInput.trim()) return;
-    const url = newUrlInput.trim();
-    setGalleryImages((prev) => [...prev, url]);
-    setImageUrl((prev) => prev || url);
+    const cleanUrl = getCloudinaryOriginalUrl(newUrlInput.trim());
+    setGalleryImages((prev) => [...prev, cleanUrl]);
+    setImageUrl((prev) => prev || cleanUrl);
     setNewUrlInput('');
-    showToast('Image Added', 'Image URL attached to post gallery.', 'success');
+    showToast('Image Added', 'Original image URL attached to post gallery.', 'success');
   };
 
   const handleMoveImage = (index: number, direction: 'left' | 'right') => {
@@ -243,8 +269,12 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       showToast('Title Required', 'Please enter a title for the prompt', 'error');
       return;
     }
-    if (!fullPrompt.trim()) {
-      showToast('Prompt Required', 'Please enter the full prompt content', 'error');
+
+    const photoTrimmed = photoPrompt.trim();
+    const videoTrimmed = videoPrompt.trim();
+
+    if (!photoTrimmed && !videoTrimmed) {
+      showToast('Prompt Content Required', 'Please enter a Photo Prompt or a Video Prompt (or both)', 'error');
       return;
     }
 
@@ -267,11 +297,20 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
 
     const coverUrl = processedGallery[0] || (imageUrl.trim().length > 0 ? imageUrl.trim() : '');
 
+    // Determine postType:
+    // If only video prompt provided (no photo prompt), postType is 'video_prompt'.
+    // If photo prompt provided (with or without video prompt), postType is 'photo_prompt'.
+    const resolvedPostType: 'photo_prompt' | 'video_prompt' =
+      !photoTrimmed && videoTrimmed ? 'video_prompt' : 'photo_prompt';
+
     onSave(
       {
-        title,
-        shortDescription,
-        fullPrompt,
+        title: title.trim(),
+        shortDescription: shortDescription.trim() || (photoTrimmed || videoTrimmed).slice(0, 140) + '...',
+        fullPrompt: photoTrimmed || videoTrimmed,
+        photoPrompt: photoTrimmed || undefined,
+        videoPrompt: videoTrimmed || undefined,
+        postType: resolvedPostType,
         categoryId: categoryId || categories[0]?.id || 'chatgpt',
         tags: parsedTags,
         imageUrl: coverUrl,
@@ -282,8 +321,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
         status,
         scheduledDate,
         badgeMode,
-        badgeType: badgeMode === 'manual' ? badgeType : undefined,
-        seoTitle: seoTitle || `${title} - Sahil Edits Prompt`,
+        badgeType: badgeMode === 'manual' ? badgeType : (!photoTrimmed && videoTrimmed ? 'VIDEO PROMPT' : undefined),
+        seoTitle: seoTitle || `${title.trim()} - Sahil Edits Prompt`,
         metaDescription: metaDescription || shortDescription,
         timerOverride: {
           enabled: timerEnabled,
@@ -312,16 +351,27 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
           className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-3xl bg-zinc-900 border border-zinc-800 shadow-2xl overflow-hidden z-10"
         >
           {/* Header Bar */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-950/80">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-zinc-800 bg-zinc-950/80">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/20 shadow-md">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-bold transition-all cursor-pointer border border-zinc-700/60 shrink-0 group active:scale-95"
+                title="Back to Posts CMS"
+                aria-label="Back to Posts CMS"
+              >
+                <ArrowLeft className="w-4 h-4 text-blue-400 group-hover:-translate-x-0.5 transition-transform" />
+                <span className="hidden sm:inline">Back</span>
+              </button>
+
+              <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-400 hidden sm:flex items-center justify-center border border-blue-500/20 shadow-md">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-extrabold text-lg text-white">
+                <h3 className="font-extrabold text-base sm:text-lg text-white">
                   {post ? 'Edit AI Prompt Post' : 'Publish New AI Prompt'}
                 </h3>
-                <p className="text-xs text-zinc-400">Configure prompt info, media, badges, and SEO metadata</p>
+                <p className="text-[11px] sm:text-xs text-zinc-400">Configure prompt info, media, badges, and SEO metadata</p>
               </div>
             </div>
 
@@ -361,7 +411,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                   <h5 className="font-bold text-base text-white">{title || 'Untitled Prompt'}</h5>
                   <p className="text-xs text-zinc-400 line-clamp-2">{shortDescription || 'Short description preview...'}</p>
                   <div className="font-mono text-xs bg-zinc-950 text-zinc-300 p-3 rounded-xl border border-zinc-800 line-clamp-3">
-                    {fullPrompt || 'Full prompt text preview...'}
+                    {photoPrompt || videoPrompt || 'Prompt text preview...'}
                   </div>
                 </div>
               </div>
@@ -427,16 +477,146 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                       />
                     </div>
 
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <label className="text-xs font-bold text-zinc-300">Full AI Prompt Content *</label>
-                      <textarea
-                        rows={5}
-                        value={fullPrompt}
-                        onChange={(e) => setFullPrompt(e.target.value)}
-                        placeholder="Paste full prompt template text here..."
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-mono text-zinc-200 focus:outline-none focus:border-blue-500 leading-relaxed"
-                        required
-                      />
+                    {/* Prompt Section with [ PHOTO PROMPT ] and [ VIDEO PROMPT ] */}
+                    <div className="sm:col-span-2 space-y-4 pt-2">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800/80 pb-3">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-blue-400" />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black uppercase tracking-wider text-zinc-200">
+                                Prompt Content
+                              </span>
+                              <span className="text-[11px] text-zinc-400 font-medium">
+                                (Photo Prompt is primary • Video Prompt is optional)
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* [ PHOTO PROMPT ] [ VIDEO PROMPT ] TABS */}
+                        <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-zinc-900/90 border border-zinc-800">
+                          <button
+                            type="button"
+                            onClick={() => setActivePromptTab('photo')}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+                              activePromptTab === 'photo'
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                            }`}
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            <span>PHOTO PROMPT</span>
+                            {photoPrompt.trim().length > 0 && (
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Photo Prompt has content" />
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setActivePromptTab('video')}
+                            className={`px-3.5 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+                              activePromptTab === 'video'
+                                ? 'bg-gradient-to-r from-rose-600 to-pink-600 text-white shadow-lg shadow-rose-600/30'
+                                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                            }`}
+                          >
+                            <Film className="w-3.5 h-3.5" />
+                            <span>VIDEO PROMPT</span>
+                            <span className="text-[10px] font-semibold opacity-75">(Optional)</span>
+                            {videoPrompt.trim().length > 0 && (
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="Video Prompt has content" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Prompt Status Pill Bar */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[11px]">
+                        <div className="text-zinc-400 font-medium">
+                          {activePromptTab === 'photo' ? (
+                            <span>
+                              📷 <strong className="text-zinc-200">Photo Prompt</strong> — for Midjourney, DALL-E, ChatGPT, Stable Diffusion
+                            </span>
+                          ) : (
+                            <span>
+                              🎬 <strong className="text-zinc-200">Video Prompt (Optional)</strong> — for Runway Gen-3, Luma Dream Machine, Sora, Kling, Pika
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                              photoPrompt.trim()
+                                ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                                : 'bg-zinc-900 text-zinc-500'
+                            }`}
+                          >
+                            Photo: {photoPrompt.trim() ? 'Configured ✓' : 'Empty'}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                              videoPrompt.trim()
+                                ? 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                                : 'bg-zinc-900 text-zinc-500'
+                            }`}
+                          >
+                            Video: {videoPrompt.trim() ? 'Configured ✓' : 'Empty (Optional)'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Tab 1: Photo Prompt Input */}
+                      {activePromptTab === 'photo' && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-zinc-300">
+                              Photo Prompt Content {!videoPrompt.trim() && '*'}
+                            </label>
+                            <span className="text-[11px] text-zinc-500 font-mono">
+                              {photoPrompt.length} characters
+                            </span>
+                          </div>
+                          <textarea
+                            rows={6}
+                            value={photoPrompt}
+                            onChange={(e) => setPhotoPrompt(e.target.value)}
+                            placeholder="Enter detailed photo prompt instructions, subject description, lighting, style, aspect ratio, camera settings..."
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-mono text-zinc-200 focus:outline-none focus:border-blue-500 leading-relaxed custom-scrollbar"
+                          />
+                          <p className="text-[11px] text-zinc-400">
+                            Provide high-detail prompts for AI image generation. You can also switch to the <strong className="text-zinc-300">Video Prompt</strong> tab to add an optional video prompt to this same post.
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Tab 2: Video Prompt Input */}
+                      {activePromptTab === 'video' && (
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-zinc-300">
+                              Video Prompt Content <span className="text-zinc-500 font-normal">(Optional addition)</span>
+                            </label>
+                            <span className="text-[11px] text-zinc-500 font-mono">
+                              {videoPrompt.length} characters
+                            </span>
+                          </div>
+                          <textarea
+                            rows={6}
+                            value={videoPrompt}
+                            onChange={(e) => setVideoPrompt(e.target.value)}
+                            placeholder="Enter video prompt instructions (e.g. camera motion, cinematic pan, subject action, framerate, lighting dynamics...)"
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-4 text-xs font-mono text-zinc-200 focus:outline-none focus:border-rose-500 leading-relaxed custom-scrollbar"
+                          />
+                          <div className="p-3 rounded-xl bg-zinc-900/70 border border-zinc-800/80 text-[11px] text-zinc-400 space-y-1">
+                            <p className="font-semibold text-zinc-300">💡 Flexible Publishing Rules:</p>
+                            <ul className="list-disc pl-4 space-y-0.5 text-zinc-400">
+                              <li><strong className="text-zinc-200">Video Prompt Only:</strong> Leave photo prompt and image gallery empty — the post will publish cleanly with no photo container or placeholders.</li>
+                              <li><strong className="text-zinc-200">Photo + Video Prompt:</strong> Both will be presented on this single post, with Photo Prompt first followed by Video Prompt.</li>
+                            </ul>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

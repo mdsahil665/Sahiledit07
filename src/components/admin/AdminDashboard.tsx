@@ -65,6 +65,7 @@ import {
   Heart,
   Star,
   Users,
+  Film,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { promptStore } from '../../services/promptStore';
@@ -83,6 +84,7 @@ import { AdminSidebar, AdminTab } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { GlobalSearchModal } from './GlobalSearchModal';
 import { DashboardOverview } from './DashboardOverview';
+import { getOptimizedDisplayUrl } from '../../lib/imageUtils';
 import { UserManagementSection } from './UserManagementSection';
 import { SystemHealthSection } from './SystemHealthSection';
 import { EngagementSection } from './EngagementSection';
@@ -96,12 +98,19 @@ import { SeoSettingsSection } from './SeoSettingsSection';
 import { CloudinaryAdminSection } from './CloudinaryAdminSection';
 import { SecurityAuthSection } from './SecurityAuthSection';
 import { ActivityLogsSection } from './ActivityLogsSection';
+import {
+  getAdminTabFromUrl,
+  getUrlForAdminTab,
+  getTabMetadata,
+  ADMIN_TABS_META,
+} from '../../utils/adminRoutes';
 
 interface AdminDashboardProps {
   posts: PromptPost[];
   categories: Category[];
   stats: AdminStats;
   activities: RecentActivity[];
+  initialTab?: AdminTab;
   onAddPost: () => void;
   onEditPost: (post: PromptPost) => void;
   onAddCategory: () => void;
@@ -117,6 +126,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   categories,
   stats,
   activities,
+  initialTab,
   onAddPost,
   onEditPost,
   onAddCategory,
@@ -127,11 +137,93 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onOpenPageModal,
 }) => {
   const { logout, currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  
+  // Initialize tab based on URL first, then initialTab prop, then 'dashboard'
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    const urlTab = getAdminTabFromUrl();
+    return urlTab || initialTab || 'dashboard';
+  });
+
+  // Manage in-memory admin history stack for back button navigation
+  const [adminHistoryStack, setAdminHistoryStack] = useState<AdminTab[]>(() => {
+    const startTab = getAdminTabFromUrl() || initialTab || 'dashboard';
+    if (startTab === 'dashboard') {
+      return ['dashboard'];
+    }
+    // Deep-link scenario (e.g. directly visiting /admin/likes):
+    // Seed with ['dashboard', startTab] so Back button and Android Back return to Dashboard!
+    return ['dashboard', startTab];
+  });
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
+
+  // Sync and seed browser history on mount
+  useEffect(() => {
+    const startTab = getAdminTabFromUrl() || initialTab || 'dashboard';
+    const canonicalUrl = getUrlForAdminTab(startTab);
+
+    // If directly opened deep admin page, ensure entry history exists so Android Back goes to Dashboard
+    if (startTab !== 'dashboard' && (!window.history.state || window.history.state.type !== 'admin')) {
+      window.history.replaceState({ type: 'admin', tab: 'dashboard' }, '', '/admin/dashboard');
+      window.history.pushState({ type: 'admin', tab: startTab }, '', canonicalUrl);
+    } else if (!window.history.state || window.history.state.tab !== startTab) {
+      window.history.replaceState({ type: 'admin', tab: startTab }, '', canonicalUrl);
+    }
+  }, [initialTab]);
+
+  // Navigate to an admin tab, pushing history and updating stack
+  const handleSelectTab = (tab: AdminTab) => {
+    if (tab === activeTab) return; // Prevent duplicate navigation / history clutter
+
+    const canonicalUrl = getUrlForAdminTab(tab);
+    window.history.pushState({ type: 'admin', tab }, '', canonicalUrl);
+    setAdminHistoryStack((prev) => [...prev, tab]);
+    setActiveTab(tab);
+  };
+
+  // Back button handler: follows actual navigation history
+  const handleBack = () => {
+    if (adminHistoryStack.length > 1) {
+      // Pop history entry in browser
+      window.history.back();
+    } else if (activeTab !== 'dashboard') {
+      // Fallback for deep-linked page without prior history: safely return to Admin Dashboard
+      handleSelectTab('dashboard');
+    } else {
+      // At root Dashboard with no prior history: exit to public website
+      onClose();
+    }
+  };
+
+  // Listen to browser / Android back and forward events
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const stateTab = event.state?.tab as AdminTab | undefined;
+      const urlTab = getAdminTabFromUrl();
+      const nextTab = stateTab || urlTab;
+
+      if (nextTab) {
+        setActiveTab(nextTab);
+        setAdminHistoryStack((prev) => {
+          if (prev.length > 1 && prev[prev.length - 2] === nextTab) {
+            return prev.slice(0, -1);
+          }
+          if (prev[prev.length - 1] === nextTab) {
+            return prev;
+          }
+          return [...prev, nextTab];
+        });
+      } else if (!window.location.pathname.startsWith('/admin')) {
+        // Popped out of admin to public site
+        onClose();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [onClose]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -238,6 +330,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   };
 
+  const handleEditPost = (targetPost: PromptPost) => {
+    onEditPost(targetPost);
+  };
+
   const handleDuplicatePost = (id: string) => {
     promptStore.duplicatePost(id);
     onRefreshData();
@@ -260,87 +356,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     showToast('✓ Website Settings Saved', 'Branding & custom settings updated');
   };
 
-  // Title for active tab
-  const getTabMeta = (tab: AdminTab) => {
-    switch (tab) {
-      case 'dashboard':
-        return { title: 'Dashboard Overview', group: 'Main' };
-      case 'posts':
-        return { title: 'Posts Management CMS', group: 'Content' };
-      case 'categories':
-        return { title: 'Categories Manager', group: 'Content' };
-      case 'trending':
-        return { title: 'Trending Posts', group: 'Content' };
-      case 'latest':
-        return { title: 'Latest Posts', group: 'Content' };
-      case 'popular':
-        return { title: 'Popular Posts', group: 'Content' };
-      case 'likes':
-        return { title: 'Likes Overview', group: 'Engagement' };
-      case 'shares':
-        return { title: 'Shares Analytics', group: 'Engagement' };
-      case 'views':
-        return { title: 'Views Breakdown', group: 'Engagement' };
-      case 'ratings':
-        return { title: 'Prompt Ratings', group: 'Engagement' };
-      case 'comments':
-        return { title: 'Comments Moderation', group: 'Engagement' };
-      case 'users':
-        return { title: 'User Management', group: 'Users' };
-      case 'premium_users':
-        return { title: 'Premium Subscribers', group: 'Users' };
-      case 'premium':
-        return { title: 'Subscription / Premium', group: 'Monetization' };
-      case 'monetization':
-        return { title: 'Ads & Monetization', group: 'Monetization' };
-      case 'share':
-        return { title: 'Post Share Controls', group: 'Social' };
-      case 'footer_social':
-        return { title: 'Footer Social Links', group: 'Social' };
-      case 'contact_social':
-        return { title: 'Contact Social Links', group: 'Social' };
-      case 'sections':
-        return { title: 'Homepage Settings', group: 'Website' };
-      case 'pages':
-        return { title: 'Pages & Navigation', group: 'Website' };
-      case 'postcard':
-        return { title: 'Post Card Appearance', group: 'Website' };
-      case 'logo':
-        return { title: 'Logo & Branding', group: 'Website' };
-      case 'features':
-        return { title: 'Feature Controls', group: 'Website' };
-      case 'seo':
-        return { title: 'SEO Settings', group: 'Website' };
-      case 'firebase':
-        return { title: 'Firebase & Cloud Storage', group: 'System' };
-      case 'cloudinary':
-        return { title: 'Cloudinary Media API', group: 'System' };
-      case 'security':
-        return { title: 'Security & Auth', group: 'System' };
-      case 'activity':
-        return { title: 'Activity Logs', group: 'System' };
-      case 'settings':
-        return { title: 'Admin Settings', group: 'System' };
-      case 'deployment':
-        return { title: 'Deployment Guide', group: 'System' };
-      default:
-        return { title: 'Admin Workspace', group: 'Management' };
-    }
-  };
-
-  const currentMeta = getTabMeta(activeTab);
+  const currentMeta = getTabMetadata(activeTab);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col lg:flex-row antialiased selection:bg-blue-500 selection:text-white">
       {/* Sidebar Navigation */}
       <AdminSidebar
         activeTab={activeTab}
-        onSelectTab={(tab) => setActiveTab(tab)}
+        onSelectTab={handleSelectTab}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         isOpenMobile={isMobileSidebarOpen}
         onCloseMobile={() => setIsMobileSidebarOpen(false)}
         onOpenAddPost={onAddPost}
+        onAddVideoPrompt={onAddPost}
         counts={{
           posts: posts.length,
           categories: categories.length,
@@ -356,10 +385,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           isSidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'
         }`}
       >
-        {/* Top Header Bar */}
+        {/* Top Header Bar with Internal Back Button & Breadcrumbs */}
         <AdminHeader
           activeTabTitle={currentMeta.title}
           categoryGroup={currentMeta.group}
+          canGoBack={adminHistoryStack.length > 1 || activeTab !== 'dashboard'}
+          onBack={handleBack}
+          onNavigateTab={handleSelectTab}
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
           onOpenGlobalSearch={() => setIsGlobalSearchOpen(true)}
           notifications={notifications}
@@ -372,18 +404,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           {/* DASHBOARD OVERVIEW */}
           {activeTab === 'dashboard' && (
-            <DashboardOverview
-              posts={posts}
-              categories={categories}
-              stats={stats}
-              activities={activities}
-              onSelectTab={(tab) => setActiveTab(tab)}
-              onOpenAddPost={onAddPost}
-            />
+            <AdminErrorBoundary
+              fallbackTitle="Dashboard Overview"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
+              <DashboardOverview
+                posts={posts}
+                categories={categories}
+                stats={stats}
+                activities={activities}
+                onSelectTab={handleSelectTab}
+                onOpenAddPost={onAddPost}
+                onAddVideoPrompt={onAddPost}
+              />
+            </AdminErrorBoundary>
           )}
 
           {/* POSTS MANAGEMENT CMS */}
           {(activeTab === 'posts' || activeTab === 'trending' || activeTab === 'latest' || activeTab === 'popular') && (
+            <AdminErrorBoundary
+              fallbackTitle="Posts Management CMS"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
             <div className="space-y-6 animate-fade-in pb-12">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
                 <div>
@@ -406,6 +450,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <span>Delete Selected ({selectedPostIds.length})</span>
                     </button>
                   )}
+
+                  <button
+                    onClick={onAddPost}
+                    className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs shadow-xl shadow-rose-600/25 flex items-center gap-2 transition-all cursor-pointer ring-1 ring-white/20"
+                  >
+                    <Film className="w-4 h-4" />
+                    <span>Create Video Prompt</span>
+                  </button>
 
                   <button
                     onClick={onAddPost}
@@ -503,13 +555,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
                               <td className="p-4">
                                 <div className="flex items-center gap-3">
-                                  <img
-                                    src={post.imageUrl}
-                                    alt={post.title}
-                                    className="w-12 h-12 rounded-xl object-cover shrink-0 border border-zinc-800"
-                                  />
+                                  {post.imageUrl ? (
+                                    <img
+                                      src={getOptimizedDisplayUrl(post.imageUrl, { width: 100, height: 100, crop: 'fill' })}
+                                      alt={post.title}
+                                      className="w-12 h-12 rounded-xl object-cover shrink-0 border border-zinc-800"
+                                    />
+                                  ) : (
+                                    <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 shadow-sm">
+                                      <Film className="w-6 h-6" />
+                                    </div>
+                                  )}
                                   <div className="truncate max-w-xs sm:max-w-md">
-                                    <h4 className="font-bold text-white truncate hover:text-blue-400 transition-colors cursor-pointer" onClick={() => onEditPost(post)}>
+                                    <h4 className="font-bold text-white truncate hover:text-blue-400 transition-colors cursor-pointer" onClick={() => handleEditPost(post)}>
                                       {post.title}
                                     </h4>
                                     <p className="text-[11px] text-zinc-400 truncate mt-0.5">{post.shortDescription || post.fullPrompt}</p>
@@ -518,9 +576,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                               </td>
 
                               <td className="p-4">
-                                <span className="px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300 text-[10px] font-bold border border-zinc-700/50">
-                                  {post.categoryId}
-                                </span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300 text-[10px] font-bold border border-zinc-700/50">
+                                    {post.categoryId}
+                                  </span>
+                                  {post.postType === 'video_prompt' && (
+                                    <span className="px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/30 text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                                      <Film className="w-2.5 h-2.5" />
+                                      Video
+                                    </span>
+                                  )}
+                                </div>
                               </td>
 
                               <td className="p-4">
@@ -559,7 +625,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                                   </button>
 
                                   <button
-                                    onClick={() => onEditPost(post)}
+                                    onClick={() => handleEditPost(post)}
                                     className="p-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 text-blue-400 transition-colors cursor-pointer"
                                     title="Edit Post"
                                   >
@@ -592,85 +658,138 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
             </div>
+            </AdminErrorBoundary>
           )}
 
           {/* USERS MANAGEMENT */}
           {(activeTab === 'users' || activeTab === 'premium_users') && (
-            <AdminErrorBoundary fallbackTitle="User Management">
+            <AdminErrorBoundary
+              fallbackTitle="User Management"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <UserManagementSection />
             </AdminErrorBoundary>
           )}
 
           {/* ENGAGEMENT SECTIONS */}
           {activeTab === 'likes' && (
-            <AdminErrorBoundary fallbackTitle="Likes Overview">
-              <EngagementSection type="likes" posts={posts} onEditPost={onEditPost} />
+            <AdminErrorBoundary
+              fallbackTitle="Likes Overview"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
+              <EngagementSection type="likes" posts={posts} onEditPost={handleEditPost} />
             </AdminErrorBoundary>
           )}
           {activeTab === 'shares' && (
-            <AdminErrorBoundary fallbackTitle="Shares Analytics">
-              <EngagementSection type="shares" posts={posts} onEditPost={onEditPost} />
+            <AdminErrorBoundary
+              fallbackTitle="Shares Analytics"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
+              <EngagementSection type="shares" posts={posts} onEditPost={handleEditPost} />
             </AdminErrorBoundary>
           )}
           {activeTab === 'views' && (
-            <AdminErrorBoundary fallbackTitle="Views Analytics">
-              <EngagementSection type="views" posts={posts} onEditPost={onEditPost} />
+            <AdminErrorBoundary
+              fallbackTitle="Views Analytics"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
+              <EngagementSection type="views" posts={posts} onEditPost={handleEditPost} />
             </AdminErrorBoundary>
           )}
           {activeTab === 'ratings' && (
-            <AdminErrorBoundary fallbackTitle="Prompt Ratings">
-              <EngagementSection type="ratings" posts={posts} onEditPost={onEditPost} />
+            <AdminErrorBoundary
+              fallbackTitle="Prompt Ratings"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
+              <EngagementSection type="ratings" posts={posts} onEditPost={handleEditPost} />
             </AdminErrorBoundary>
           )}
 
           {/* COMMENTS MODERATION */}
           {activeTab === 'comments' && (
-            <AdminErrorBoundary fallbackTitle="Comments Moderation">
+            <AdminErrorBoundary
+              fallbackTitle="Comments Moderation"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <CommentsModerationSection />
             </AdminErrorBoundary>
           )}
 
           {/* SOCIAL MEDIA & SHARE SETTINGS */}
           {activeTab === 'share' && (
-            <AdminErrorBoundary fallbackTitle="Post Share Controls">
+            <AdminErrorBoundary
+              fallbackTitle="Post Share Controls"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <SocialSettingsSection type="share" />
             </AdminErrorBoundary>
           )}
           {activeTab === 'footer_social' && (
-            <AdminErrorBoundary fallbackTitle="Footer Social Links">
+            <AdminErrorBoundary
+              fallbackTitle="Footer Social Links"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <SocialSettingsSection type="footer_social" />
             </AdminErrorBoundary>
           )}
           {activeTab === 'contact_social' && (
-            <AdminErrorBoundary fallbackTitle="Contact Social Links">
+            <AdminErrorBoundary
+              fallbackTitle="Contact Social Links"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <SocialSettingsSection type="contact_social" />
             </AdminErrorBoundary>
           )}
 
           {/* ADS & MONETIZATION */}
           {activeTab === 'monetization' && (
-            <AdminErrorBoundary fallbackTitle="Ads & Monetization">
+            <AdminErrorBoundary
+              fallbackTitle="Ads & Monetization"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <MonetizationAdminSection />
             </AdminErrorBoundary>
           )}
 
           {/* SYSTEM HEALTH & FIREBASE */}
           {activeTab === 'firebase' && (
-            <AdminErrorBoundary fallbackTitle="Firebase & Storage">
+            <AdminErrorBoundary
+              fallbackTitle="Firebase & Storage"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <SystemHealthSection />
             </AdminErrorBoundary>
           )}
 
           {/* SUBSCRIPTION & PREMIUM */}
           {activeTab === 'premium' && (
-            <AdminErrorBoundary fallbackTitle="Subscription / Premium">
+            <AdminErrorBoundary
+              fallbackTitle="Subscription / Premium"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <PremiumAdminSection />
             </AdminErrorBoundary>
           )}
 
           {/* CATEGORIES MANAGEMENT */}
           {activeTab === 'categories' && (
-            <AdminErrorBoundary fallbackTitle="Categories Manager">
+            <AdminErrorBoundary
+              fallbackTitle="Categories Manager"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <div className="space-y-6 animate-fade-in pb-12">
                 <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
                   <div>
@@ -725,73 +844,146 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           {/* HOMEPAGE & SECTIONS */}
           {activeTab === 'sections' && (
-            <AdminErrorBoundary fallbackTitle="Homepage Settings">
+            <AdminErrorBoundary
+              fallbackTitle="Homepage Settings"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <WebsiteSectionsControl />
             </AdminErrorBoundary>
           )}
 
           {/* FOOTER SETTINGS */}
           {activeTab === 'footer' && (
-            <AdminErrorBoundary fallbackTitle="Footer Settings">
+            <AdminErrorBoundary
+              fallbackTitle="Footer Settings"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <FooterSettingsControl />
             </AdminErrorBoundary>
           )}
 
           {/* PAGES & NAVIGATION */}
           {activeTab === 'pages' && (
-            <AdminErrorBoundary fallbackTitle="Pages & Navigation">
+            <AdminErrorBoundary
+              fallbackTitle="Pages & Navigation"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <PagesNavigationSection />
             </AdminErrorBoundary>
           )}
 
           {/* SEO SETTINGS */}
           {activeTab === 'seo' && (
-            <AdminErrorBoundary fallbackTitle="SEO Settings">
+            <AdminErrorBoundary
+              fallbackTitle="SEO Settings"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <SeoSettingsSection />
             </AdminErrorBoundary>
           )}
 
           {/* CLOUDINARY MEDIA */}
           {activeTab === 'cloudinary' && (
-            <AdminErrorBoundary fallbackTitle="Cloudinary Media">
+            <AdminErrorBoundary
+              fallbackTitle="Cloudinary Media"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <CloudinaryAdminSection />
             </AdminErrorBoundary>
           )}
 
           {/* SECURITY & AUTH */}
           {activeTab === 'security' && (
-            <AdminErrorBoundary fallbackTitle="Security & Auth">
+            <AdminErrorBoundary
+              fallbackTitle="Security & Auth"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <SecurityAuthSection />
             </AdminErrorBoundary>
           )}
 
           {/* ACTIVITY & LOGS */}
           {activeTab === 'activity' && (
-            <AdminErrorBoundary fallbackTitle="Activity & Logs">
+            <AdminErrorBoundary
+              fallbackTitle="Activity & Logs"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <ActivityLogsSection />
             </AdminErrorBoundary>
           )}
 
           {/* OTHER ADMIN SECTIONS */}
           {activeTab === 'postcard' && (
-            <AdminErrorBoundary fallbackTitle="Post Card Appearance">
+            <AdminErrorBoundary
+              fallbackTitle="Post Card Appearance"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <PostCardAppearanceControl />
             </AdminErrorBoundary>
           )}
           {activeTab === 'logo' && (
-            <AdminErrorBoundary fallbackTitle="Logo & Branding">
+            <AdminErrorBoundary
+              fallbackTitle="Logo & Branding"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <LogoManager />
             </AdminErrorBoundary>
           )}
           {(activeTab === 'features' || activeTab === 'settings') && (
-            <AdminErrorBoundary fallbackTitle="Feature Controls">
+            <AdminErrorBoundary
+              fallbackTitle="Feature Controls"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <FeatureControlCenter />
             </AdminErrorBoundary>
           )}
           {activeTab === 'deployment' && (
-            <AdminErrorBoundary fallbackTitle="Deployment Guide">
+            <AdminErrorBoundary
+              fallbackTitle="Deployment Guide"
+              onBack={handleBack}
+              onGoDashboard={() => handleSelectTab('dashboard')}
+            >
               <DeploymentGuide />
             </AdminErrorBoundary>
+          )}
+
+          {/* UNRECOGNIZED TAB FALLBACK */}
+          {!ADMIN_TABS_META[activeTab] && (
+            <div className="p-8 rounded-3xl bg-zinc-900 border border-zinc-800 text-center space-y-4 max-w-lg mx-auto my-12 animate-fade-in shadow-2xl">
+              <div className="w-12 h-12 rounded-2xl bg-zinc-800 text-zinc-400 flex items-center justify-center mx-auto border border-zinc-700/60">
+                <Sliders className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">Admin Section Not Found</h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  The requested admin tab does not exist or has been moved.
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-3 pt-2">
+                <button
+                  onClick={handleBack}
+                  className="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs transition-colors cursor-pointer"
+                >
+                  ← Back
+                </button>
+                <button
+                  onClick={() => handleSelectTab('dashboard')}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors cursor-pointer"
+                >
+                  Go to Dashboard
+                </button>
+              </div>
+            </div>
           )}
         </main>
       </div>
@@ -803,8 +995,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         posts={posts}
         categories={categories}
         pages={pages}
-        onSelectTab={(tab) => setActiveTab(tab)}
-        onEditPost={onEditPost}
+        onSelectTab={handleSelectTab}
+        onEditPost={handleEditPost}
       />
 
       {/* Delete Post Confirmation Modal */}

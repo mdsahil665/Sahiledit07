@@ -30,6 +30,7 @@ import {
   Zap,
   Link,
   Images,
+  Film,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from './Toast';
@@ -49,6 +50,7 @@ import { getPostDisplayBadge } from '../services/badgeService';
 import { AdBanner } from './AdBanner';
 import { PromptCard } from './PromptCard';
 import { Footer } from './Footer';
+import { downloadImage, getOptimizedDisplayUrl, getOriginalImageUrl } from '../lib/imageUtils';
 
 interface PromptModalProps {
   post: PromptPost | null;
@@ -138,6 +140,28 @@ export const PromptModal: React.FC<PromptModalProps> = ({
   const galleryImages: string[] = useMemo(() => {
     return getPostGallery(post);
   }, [post]);
+
+  const hasAnyImage = Boolean((galleryImages.length > 0 && galleryImages[0]) || (post?.imageUrl && post.imageUrl.trim().length > 0));
+  const isVideoPrompt = post?.postType === 'video_prompt';
+
+  // Extract prompts cleanly across all scenarios
+  const rawPhoto = post?.photoPrompt?.trim();
+  const rawVideo = post?.videoPrompt?.trim();
+  const isExplicitVideoPost = post?.postType === 'video_prompt';
+
+  const photoPromptText =
+    rawPhoto ||
+    (!isExplicitVideoPost && post?.fullPrompt?.trim() ? post.fullPrompt.trim() : '');
+
+  const videoPromptText =
+    rawVideo ||
+    (isExplicitVideoPost && post?.fullPrompt?.trim() ? post.fullPrompt.trim() : '');
+
+  const hasPhotoPrompt = Boolean(photoPromptText && photoPromptText.length > 0);
+  const hasVideoPrompt = Boolean(videoPromptText && videoPromptText.length > 0);
+
+  const [photoCopied, setPhotoCopied] = useState(false);
+  const [videoCopied, setVideoCopied] = useState(false);
 
   useEffect(() => {
     setActiveImageIndex(0);
@@ -310,23 +334,29 @@ export const PromptModal: React.FC<PromptModalProps> = ({
     }
   };
 
-  const handleDownloadImage = async () => {
-    const targetUrl = galleryImages[activeImageIndex] || post?.imageUrl;
-    if (!targetUrl) return;
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+
+  const handleDownloadImage = async (imageIndex?: number) => {
+    const targetIdx = typeof imageIndex === 'number' ? imageIndex : activeImageIndex;
+    const targetUrl = galleryImages[targetIdx] || post?.imageUrl;
+    if (!targetUrl) {
+      showToast('No Image', 'There is no image to download.');
+      return;
+    }
+
+    setIsDownloading(true);
+    showToast('Starting Download', 'Fetching original full-resolution image...', 'info');
+
     try {
-      const response = await fetch(targetUrl);
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${post?.title ? post.title.replace(/[^a-z0-9]/gi, '_') : 'image'}_${activeImageIndex + 1}.jpg`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      showToast('✓ Image Downloaded', 'Saved high-quality image to your downloads.');
-    } catch (err) {
-      window.open(targetUrl, '_blank');
+      await downloadImage(targetUrl, post?.title || 'prompt_image', targetIdx);
+      showToast('✓ Image Downloaded', 'Original image saved to your downloads.');
+    } catch (err: any) {
+      console.warn('Download error:', err);
+      const fallbackUrl = getOriginalImageUrl(targetUrl);
+      window.open(fallbackUrl, '_blank');
+      showToast('Image Opened', 'Opened original image in a new tab.');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -421,12 +451,38 @@ export const PromptModal: React.FC<PromptModalProps> = ({
 
   const handleCopyPrompt = () => {
     if (!isUnlocked) return;
-    navigator.clipboard.writeText(post.fullPrompt);
+    const textToCopy = photoPromptText || videoPromptText || post.fullPrompt;
+    navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     onCopyPrompt(post);
-    showToast('✓ Prompt Copied Successfully', 'Ready to paste into your AI assistant.');
-
+    showToast('✓ Prompt Copied Successfully', 'Ready to paste into your AI tool.');
     setTimeout(() => {
+      setCopied(false);
+    }, 2500);
+  };
+
+  const handleCopyPhotoPrompt = () => {
+    if (!isUnlocked || !photoPromptText) return;
+    navigator.clipboard.writeText(photoPromptText);
+    setPhotoCopied(true);
+    setCopied(true);
+    onCopyPrompt(post);
+    showToast('✓ Photo Prompt Copied Successfully', `Optimized for ${modelOrToolName}`);
+    setTimeout(() => {
+      setPhotoCopied(false);
+      setCopied(false);
+    }, 2500);
+  };
+
+  const handleCopyVideoPrompt = () => {
+    if (!isUnlocked || !videoPromptText) return;
+    navigator.clipboard.writeText(videoPromptText);
+    setVideoCopied(true);
+    setCopied(true);
+    onCopyPrompt(post);
+    showToast('✓ Video Prompt Copied Successfully', 'Ready to paste into your AI video generator.');
+    setTimeout(() => {
+      setVideoCopied(false);
       setCopied(false);
     }, 2500);
   };
@@ -508,7 +564,9 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                 return (
                   <span
                     className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold ${
-                      type === 'NEW'
+                      type === 'VIDEO PROMPT' || type === 'VIDEO'
+                        ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                        : type === 'NEW'
                         ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
                         : type === 'PREMIUM'
                         ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
@@ -523,7 +581,11 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                         : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
                     }`}
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
+                    {type === 'VIDEO PROMPT' || type === 'VIDEO' ? (
+                      <Film className="w-3.5 h-3.5" />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5" />
+                    )}
                     <span>{badge.label}</span>
                   </span>
                 );
@@ -539,121 +601,135 @@ export const PromptModal: React.FC<PromptModalProps> = ({
           {/* Modal Content Body - Full Required Order */}
           <div className="flex-1 p-3 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 bg-zinc-50 dark:bg-zinc-900">
 
-            {/* 1. FULL POST IMAGE / GALLERY */}
-            <div className="space-y-3">
-              <div
-                onTouchStart={(e) => {
-                  touchStartXRef.current = e.touches[0].clientX;
-                }}
-                onTouchEnd={(e) => {
-                  if (touchStartXRef.current === null) return;
-                  const touchEndX = e.changedTouches[0].clientX;
-                  const diff = touchStartXRef.current - touchEndX;
-                  if (diff > 40) {
-                    // Swipe Left -> Next Image
-                    setActiveImageIndex((prev) => (prev < galleryImages.length - 1 ? prev + 1 : 0));
-                  } else if (diff < -40) {
-                    // Swipe Right -> Prev Image
-                    setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : galleryImages.length - 1));
-                  }
-                  touchStartXRef.current = null;
-                }}
-                className="relative w-full rounded-2xl sm:rounded-3xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-950 shadow-xl flex flex-col items-center justify-center p-2 sm:p-4 group touch-pan-y select-none"
-              >
-                {/* Dynamic Ambient Background generated from current post image */}
+            {/* 1. FULL POST IMAGE / GALLERY (Rendered if image is present) */}
+            {hasAnyImage ? (
+              <div className="space-y-3">
                 <div
-                  className="absolute inset-0 -m-6 bg-cover bg-center scale-125 blur-3xl opacity-65 dark:opacity-55 pointer-events-none transition-all duration-700 ease-out"
-                  style={{
-                    backgroundImage: `url(${galleryImages[activeImageIndex] || post.imageUrl})`,
+                  onTouchStart={(e) => {
+                    touchStartXRef.current = e.touches[0].clientX;
                   }}
-                />
-                {/* Softening Dark Overlay & Vignette */}
-                <div className="absolute inset-0 bg-zinc-950/40 dark:bg-zinc-950/50 pointer-events-none" />
-                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-transparent to-zinc-950/40 pointer-events-none" />
+                  onTouchEnd={(e) => {
+                    if (touchStartXRef.current === null) return;
+                    const touchEndX = e.changedTouches[0].clientX;
+                    const diff = touchStartXRef.current - touchEndX;
+                    if (diff > 40) {
+                      // Swipe Left -> Next Image
+                      setActiveImageIndex((prev) => (prev < galleryImages.length - 1 ? prev + 1 : 0));
+                    } else if (diff < -40) {
+                      // Swipe Right -> Prev Image
+                      setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : galleryImages.length - 1));
+                    }
+                    touchStartXRef.current = null;
+                  }}
+                  className="relative w-full rounded-2xl sm:rounded-3xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-950 shadow-xl flex flex-col items-center justify-center p-2 sm:p-4 group touch-pan-y select-none"
+                >
+                  {/* Dynamic Ambient Background generated from current post image */}
+                  <div
+                    className="absolute inset-0 -m-6 bg-cover bg-center scale-125 blur-3xl opacity-65 dark:opacity-55 pointer-events-none transition-all duration-700 ease-out"
+                    style={{
+                      backgroundImage: `url(${getOptimizedDisplayUrl(galleryImages[activeImageIndex] || post.imageUrl, { width: 240, quality: '60' })})`,
+                    }}
+                  />
+                  {/* Softening Dark Overlay & Vignette */}
+                  <div className="absolute inset-0 bg-zinc-950/40 dark:bg-zinc-950/50 pointer-events-none" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-transparent to-zinc-950/40 pointer-events-none" />
 
-                {/* Foreground Sharp Image */}
-                <img
-                  src={galleryImages[activeImageIndex] || post.imageUrl}
-                  alt={`${post.title} - Image ${activeImageIndex + 1}`}
-                  loading="lazy"
-                  decoding="async"
-                  className="relative z-10 w-full h-auto max-h-[75vh] sm:max-h-[600px] object-contain rounded-xl sm:rounded-2xl transition-transform duration-300 group-hover:scale-[1.005] shadow-2xl"
-                  style={{ display: 'block', maxWidth: '100%' }}
-                />
+                  {/* Foreground Sharp Image */}
+                  <img
+                    src={getOptimizedDisplayUrl(galleryImages[activeImageIndex] || post.imageUrl, { width: 1600 })}
+                    alt={`${post.title} - Image ${activeImageIndex + 1}`}
+                    loading="lazy"
+                    decoding="async"
+                    className="relative z-10 w-full h-auto max-h-[75vh] sm:max-h-[600px] object-contain rounded-xl sm:rounded-2xl transition-transform duration-300 group-hover:scale-[1.005] shadow-2xl"
+                    style={{ display: 'block', maxWidth: '100%' }}
+                  />
 
-                {/* Top-Left Counter Badge if multiple images exist */}
-                {galleryImages.length > 1 && (
-                  <div className="absolute top-3 left-3 sm:top-5 sm:left-5 z-20 pointer-events-none">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-zinc-950/85 backdrop-blur-md text-white text-xs font-bold border border-white/15 shadow-xl">
-                      <Images className="w-3.5 h-3.5 text-blue-400" />
-                      <span>{activeImageIndex + 1} / {galleryImages.length}</span>
+                  {/* Top-Left Counter Badge if multiple images exist */}
+                  {galleryImages.length > 1 && (
+                    <div className="absolute top-3 left-3 sm:top-5 sm:left-5 z-20 pointer-events-none">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-zinc-950/85 backdrop-blur-md text-white text-xs font-bold border border-white/15 shadow-xl">
+                        <Images className="w-3.5 h-3.5 text-blue-400" />
+                        <span>{activeImageIndex + 1} / {galleryImages.length}</span>
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Navigation Arrows for Gallery */}
+                  {galleryImages.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : galleryImages.length - 1))}
+                        className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2.5 rounded-full bg-zinc-950/80 hover:bg-zinc-950 text-white border border-white/20 transition-all cursor-pointer shadow-xl active:scale-90"
+                        aria-label="Previous image"
+                      >
+                        <ChevronLeft className="w-5 h-5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveImageIndex((prev) => (prev < galleryImages.length - 1 ? prev + 1 : 0))}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2.5 rounded-full bg-zinc-950/80 hover:bg-zinc-950 text-white border border-white/20 transition-all cursor-pointer shadow-xl active:scale-90"
+                        aria-label="Next image"
+                      >
+                        <ChevronRight className="w-5 h-5" />
+                      </button>
+                    </>
+                  )}
+
+                  {/* Image Controls: Views + Download */}
+                  <div className="absolute bottom-3 right-3 sm:bottom-5 sm:right-5 z-20 flex items-center gap-2 bg-zinc-950/85 backdrop-blur-md p-1.5 sm:p-2 rounded-2xl border border-white/10 shadow-xl">
+                    <span className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-semibold text-white">
+                      <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400" />
+                      {post.views || 0} views
                     </span>
-                  </div>
-                )}
-
-                {/* Navigation Arrows for Gallery */}
-                {galleryImages.length > 1 && (
-                  <>
                     <button
                       type="button"
-                      onClick={() => setActiveImageIndex((prev) => (prev > 0 ? prev - 1 : galleryImages.length - 1))}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2.5 rounded-full bg-zinc-950/80 hover:bg-zinc-950 text-white border border-white/20 transition-all cursor-pointer shadow-xl active:scale-90"
-                      aria-label="Previous image"
+                      onClick={() => handleDownloadImage(activeImageIndex)}
+                      disabled={isDownloading}
+                      className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold transition-all shadow-md cursor-pointer disabled:opacity-60"
+                      title={galleryImages.length > 1 ? `Download Image ${activeImageIndex + 1} of ${galleryImages.length} (Original Quality)` : 'Download Original Quality Image'}
                     >
-                      <ChevronLeft className="w-5 h-5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setActiveImageIndex((prev) => (prev < galleryImages.length - 1 ? prev + 1 : 0))}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2.5 rounded-full bg-zinc-950/80 hover:bg-zinc-950 text-white border border-white/20 transition-all cursor-pointer shadow-xl active:scale-90"
-                      aria-label="Next image"
-                    >
-                      <ChevronRight className="w-5 h-5" />
-                    </button>
-                  </>
-                )}
-
-                {/* Image Controls: Views + Download */}
-                <div className="absolute bottom-3 right-3 sm:bottom-5 sm:right-5 z-20 flex items-center gap-2 bg-zinc-950/85 backdrop-blur-md p-1.5 sm:p-2 rounded-2xl border border-white/10 shadow-xl">
-                  <span className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs font-semibold text-white">
-                    <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400" />
-                    {post.views || 0} views
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleDownloadImage}
-                    className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold transition-all shadow-md cursor-pointer"
-                    title="Download current active image"
-                  >
-                    <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    <span>Download</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Thumbnails Row if multiple images exist */}
-              {galleryImages.length > 1 && (
-                <div className="flex items-center gap-2.5 overflow-x-auto pb-1.5 pt-1 px-1 scrollbar-none">
-                  {galleryImages.map((imgUrl, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setActiveImageIndex(idx)}
-                      className={`relative shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 transition-all cursor-pointer ${
-                        activeImageIndex === idx
-                          ? 'border-blue-500 dark:border-blue-400 ring-2 ring-blue-500/40 scale-105'
-                          : 'border-zinc-200 dark:border-zinc-800 opacity-60 hover:opacity-100'
-                      }`}
-                    >
-                      <img src={imgUrl} alt={`${post.title} thumbnail ${idx + 1}`} className="w-full h-full object-cover" />
-                      <span className="absolute bottom-1 right-1 px-1 py-0.2 rounded bg-black/75 text-white font-mono text-[9px]">
-                        #{idx + 1}
+                      <Download className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isDownloading ? 'animate-bounce' : ''}`} />
+                      <span>
+                        {isDownloading
+                          ? 'Downloading...'
+                          : galleryImages.length > 1
+                          ? `Download (${activeImageIndex + 1}/${galleryImages.length})`
+                          : 'Download'}
                       </span>
                     </button>
-                  ))}
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* Thumbnails Row if multiple images exist */}
+                {galleryImages.length > 1 && (
+                  <div className="flex items-center gap-2.5 overflow-x-auto pb-1.5 pt-1 px-1 scrollbar-none">
+                    {galleryImages.map((imgUrl, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setActiveImageIndex(idx)}
+                        className={`relative shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden border-2 transition-all cursor-pointer ${
+                          activeImageIndex === idx
+                            ? 'border-blue-500 dark:border-blue-400 ring-2 ring-blue-500/40 scale-105'
+                            : 'border-zinc-200 dark:border-zinc-800 opacity-60 hover:opacity-100'
+                        }`}
+                      >
+                        <img
+                          src={getOptimizedDisplayUrl(imgUrl, { width: 160, height: 160, crop: 'fill' })}
+                          alt={`${post.title} thumbnail ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                        <span className="absolute bottom-1 right-1 px-1 py-0.5 rounded bg-black/75 text-white font-mono text-[9px] font-bold">
+                          #{idx + 1}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             {/* 2. PROMPT DETAIL SECTION (LABEL, TITLE, SUBTITLE, AUTHOR + DATE) */}
             <div className="space-y-2 pt-1">
@@ -677,111 +753,403 @@ export const PromptModal: React.FC<PromptModalProps> = ({
               </div>
             </div>
 
-            {/* 3. PROMPT CONTENT CARD */}
-            <div className="rounded-3xl bg-white dark:bg-zinc-850 p-5 sm:p-7 border border-zinc-200/80 dark:border-zinc-800 shadow-sm space-y-4 sm:space-y-5">
-              {/* Card Header */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 flex items-center justify-center shrink-0">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="text-xs font-black uppercase tracking-widest text-purple-600 dark:text-purple-400">
-                      PROMPT
-                    </h2>
-                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                      Optimized for {modelOrToolName}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Save Button */}
-                <button
-                  type="button"
-                  onClick={handleToggleSave}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                    saved
-                      ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                      : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700'
-                  }`}
-                >
-                  {saved ? <BookmarkCheck className="w-4 h-4 text-amber-500 fill-amber-500" /> : <Bookmark className="w-4 h-4" />}
-                  <span>{saved ? 'Saved' : 'Save'}</span>
-                </button>
-              </div>
-
-              {/* Dedicated Inner Box for Prompt Text - Standard Uniform Height Across All Posts */}
-              <div className="relative rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 p-4 sm:p-6 text-xs sm:text-sm font-mono text-zinc-900 dark:text-zinc-100 leading-relaxed shadow-inner overflow-hidden select-text h-60 sm:h-72 flex flex-col">
-                {!isUnlocked && (
-                  <div className="absolute inset-0 z-20 backdrop-blur-md bg-white/95 dark:bg-zinc-900/95 rounded-2xl flex flex-col items-center justify-center p-4 text-center space-y-3">
-                    <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center shadow-md animate-bounce">
-                      <Lock className="w-5 h-5" />
+            {/* 3. PROMPT CONTENT SECTION */}
+            {/* CASE 1: VIDEO PROMPT ONLY */}
+            {!hasPhotoPrompt && hasVideoPrompt && (
+              <div className="rounded-3xl bg-white dark:bg-zinc-850 p-5 sm:p-7 border border-zinc-200/80 dark:border-zinc-800 shadow-sm space-y-4 sm:space-y-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center justify-center shrink-0">
+                      <Film className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-zinc-900 dark:text-white text-sm sm:text-base">Unlock the full prompt</h4>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-xs">
-                        Prompt will unlock automatically in <span className="font-bold text-emerald-600 dark:text-emerald-400">{countdown}s</span> — free.
+                      <h2 className="text-xs font-black uppercase tracking-widest text-rose-600 dark:text-rose-400">
+                        🎬 VIDEO PROMPT
+                      </h2>
+                      <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Optimized for AI Video Generation
                       </p>
                     </div>
                   </div>
-                )}
-                <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
-                  <pre className="whitespace-pre-wrap font-sans sm:font-mono text-xs sm:text-sm select-text break-words">
-                    {post.fullPrompt}
-                  </pre>
-                </div>
-              </div>
 
-              {/* Card Footer Actions: Copy + Like */}
-              <div className="flex items-center justify-between gap-3 pt-1">
-                {/* Copy Button */}
-                {fc.promptCopy && fc.copyButton && (
+                  {/* Save Button */}
                   <button
                     type="button"
-                    onClick={handleCopyPrompt}
-                    disabled={!isUnlocked}
-                    className={`inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer shadow-md active:scale-95 ${
-                      !isUnlocked
-                        ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed border border-zinc-300 dark:border-zinc-700'
-                        : copied
-                        ? 'bg-emerald-600 text-white shadow-emerald-600/30'
-                        : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-orange-500/25'
+                    onClick={handleToggleSave}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                      saved
+                        ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                        : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700'
                     }`}
                   >
-                    {!isUnlocked ? (
-                      <>
-                        <Clock className="w-4 h-4 animate-spin" />
-                        <span>Locked ({countdown}s)</span>
-                      </>
-                    ) : copied ? (
-                      <>
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>Copied!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4" />
-                        <span>Copy</span>
-                      </>
-                    )}
+                    {saved ? <BookmarkCheck className="w-4 h-4 text-amber-500 fill-amber-500" /> : <Bookmark className="w-4 h-4" />}
+                    <span>{saved ? 'Saved' : 'Save'}</span>
                   </button>
-                )}
+                </div>
 
-                {/* Like Button */}
-                <button
-                  type="button"
-                  onClick={handleLike}
-                  className={`inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer shadow-sm active:scale-95 ${
-                    liked
-                      ? 'bg-blue-600 text-white shadow-blue-600/30'
-                      : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30'
-                  }`}
-                >
-                  <Heart className={`w-4 h-4 ${liked ? 'fill-white text-white' : ''}`} />
-                  <span>Like {likeCount}</span>
-                </button>
+                {/* Inner Box for Video Prompt Text */}
+                <div className="relative rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 p-4 sm:p-6 text-xs sm:text-sm font-mono text-zinc-900 dark:text-zinc-100 leading-relaxed shadow-inner overflow-hidden select-text h-60 sm:h-72 flex flex-col">
+                  {!isUnlocked && (
+                    <div className="absolute inset-0 z-20 backdrop-blur-md bg-white/95 dark:bg-zinc-900/95 rounded-2xl flex flex-col items-center justify-center p-4 text-center space-y-3">
+                      <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center shadow-md animate-bounce">
+                        <Lock className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-zinc-900 dark:text-white text-sm sm:text-base">Unlock the full prompt</h4>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-xs">
+                          Prompt will unlock automatically in <span className="font-bold text-emerald-600 dark:text-emerald-400">{countdown}s</span> — free.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+                    <pre className="whitespace-pre-wrap font-sans sm:font-mono text-xs sm:text-sm select-text break-words">
+                      {videoPromptText}
+                    </pre>
+                  </div>
+                </div>
+
+                {/* Card Footer Actions: Copy Video Prompt + Like */}
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  {fc.promptCopy && fc.copyButton && (
+                    <button
+                      type="button"
+                      onClick={handleCopyVideoPrompt}
+                      disabled={!isUnlocked}
+                      className={`inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer shadow-md active:scale-95 ${
+                        !isUnlocked
+                          ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed border border-zinc-300 dark:border-zinc-700'
+                          : videoCopied
+                          ? 'bg-emerald-600 text-white shadow-emerald-600/30'
+                          : 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white shadow-rose-600/25'
+                      }`}
+                    >
+                      {!isUnlocked ? (
+                        <>
+                          <Clock className="w-4 h-4 animate-spin" />
+                          <span>Locked ({countdown}s)</span>
+                        </>
+                      ) : videoCopied ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          <span>Copy Video Prompt</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleLike}
+                    className={`inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer shadow-sm active:scale-95 ${
+                      liked
+                        ? 'bg-blue-600 text-white shadow-blue-600/30'
+                        : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                    }`}
+                  >
+                    <Heart className={`w-4 h-4 ${liked ? 'fill-white text-white' : ''}`} />
+                    <span>Like {likeCount}</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* CASE 2: PHOTO PROMPT + VIDEO PROMPT */}
+            {hasPhotoPrompt && hasVideoPrompt && (
+              <div className="space-y-6">
+                {/* 1st: PHOTO PROMPT */}
+                <div className="rounded-3xl bg-white dark:bg-zinc-850 p-5 sm:p-7 border border-zinc-200/80 dark:border-zinc-800 shadow-sm space-y-4 sm:space-y-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 flex items-center justify-center shrink-0">
+                        <Sparkles className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h2 className="text-xs font-black uppercase tracking-widest text-purple-600 dark:text-purple-400">
+                          PHOTO PROMPT
+                        </h2>
+                        <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                          Optimized for {modelOrToolName}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Save Button */}
+                    <button
+                      type="button"
+                      onClick={handleToggleSave}
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                        saved
+                          ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                          : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700'
+                      }`}
+                    >
+                      {saved ? <BookmarkCheck className="w-4 h-4 text-amber-500 fill-amber-500" /> : <Bookmark className="w-4 h-4" />}
+                      <span>{saved ? 'Saved' : 'Save'}</span>
+                    </button>
+                  </div>
+
+                  {/* Inner Box for Photo Prompt Text */}
+                  <div className="relative rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 p-4 sm:p-6 text-xs sm:text-sm font-mono text-zinc-900 dark:text-zinc-100 leading-relaxed shadow-inner overflow-hidden select-text h-60 sm:h-72 flex flex-col">
+                    {!isUnlocked && (
+                      <div className="absolute inset-0 z-20 backdrop-blur-md bg-white/95 dark:bg-zinc-900/95 rounded-2xl flex flex-col items-center justify-center p-4 text-center space-y-3">
+                        <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center shadow-md animate-bounce">
+                          <Lock className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-zinc-900 dark:text-white text-sm sm:text-base">Unlock the full prompt</h4>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-xs">
+                            Prompt will unlock automatically in <span className="font-bold text-emerald-600 dark:text-emerald-400">{countdown}s</span> — free.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+                      <pre className="whitespace-pre-wrap font-sans sm:font-mono text-xs sm:text-sm select-text break-words">
+                        {photoPromptText}
+                      </pre>
+                    </div>
+                  </div>
+
+                  {/* Footer Action: Copy Photo Prompt */}
+                  <div className="flex items-center justify-between gap-3 pt-1">
+                    {fc.promptCopy && fc.copyButton && (
+                      <button
+                        type="button"
+                        onClick={handleCopyPhotoPrompt}
+                        disabled={!isUnlocked}
+                        className={`inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer shadow-md active:scale-95 ${
+                          !isUnlocked
+                            ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed border border-zinc-300 dark:border-zinc-700'
+                            : photoCopied
+                            ? 'bg-emerald-600 text-white shadow-emerald-600/30'
+                            : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-orange-500/25'
+                        }`}
+                      >
+                        {!isUnlocked ? (
+                          <>
+                            <Clock className="w-4 h-4 animate-spin" />
+                            <span>Locked ({countdown}s)</span>
+                          </>
+                        ) : photoCopied ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            <span>Copy Photo Prompt</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2nd: VIDEO PROMPT */}
+                <div className="rounded-3xl bg-white dark:bg-zinc-850 p-5 sm:p-7 border border-zinc-200/80 dark:border-zinc-800 shadow-sm space-y-4 sm:space-y-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 flex items-center justify-center shrink-0">
+                        <Film className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h2 className="text-xs font-black uppercase tracking-widest text-rose-600 dark:text-rose-400">
+                          🎬 VIDEO PROMPT
+                        </h2>
+                        <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                          Optimized for AI Video Generation (Runway, Luma, Sora, Kling, Pika)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Inner Box for Video Prompt Text */}
+                  <div className="relative rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 p-4 sm:p-6 text-xs sm:text-sm font-mono text-zinc-900 dark:text-zinc-100 leading-relaxed shadow-inner overflow-hidden select-text h-60 sm:h-72 flex flex-col">
+                    {!isUnlocked && (
+                      <div className="absolute inset-0 z-20 backdrop-blur-md bg-white/95 dark:bg-zinc-900/95 rounded-2xl flex flex-col items-center justify-center p-4 text-center space-y-3">
+                        <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center shadow-md animate-bounce">
+                          <Lock className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-zinc-900 dark:text-white text-sm sm:text-base">Unlock the full prompt</h4>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-xs">
+                            Prompt will unlock automatically in <span className="font-bold text-emerald-600 dark:text-emerald-400">{countdown}s</span> — free.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+                      <pre className="whitespace-pre-wrap font-sans sm:font-mono text-xs sm:text-sm select-text break-words">
+                        {videoPromptText}
+                      </pre>
+                    </div>
+                  </div>
+
+                  {/* Footer Actions: Copy Video Prompt + Like */}
+                  <div className="flex items-center justify-between gap-3 pt-1">
+                    {fc.promptCopy && fc.copyButton && (
+                      <button
+                        type="button"
+                        onClick={handleCopyVideoPrompt}
+                        disabled={!isUnlocked}
+                        className={`inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer shadow-md active:scale-95 ${
+                          !isUnlocked
+                            ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed border border-zinc-300 dark:border-zinc-700'
+                            : videoCopied
+                            ? 'bg-emerald-600 text-white shadow-emerald-600/30'
+                            : 'bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white shadow-rose-600/25'
+                        }`}
+                      >
+                        {!isUnlocked ? (
+                          <>
+                            <Clock className="w-4 h-4 animate-spin" />
+                            <span>Locked ({countdown}s)</span>
+                          </>
+                        ) : videoCopied ? (
+                          <>
+                            <CheckCircle2 className="w-4 h-4" />
+                            <span>Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            <span>Copy Video Prompt</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    {/* Like Button */}
+                    <button
+                      type="button"
+                      onClick={handleLike}
+                      className={`inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer shadow-sm active:scale-95 ${
+                        liked
+                          ? 'bg-blue-600 text-white shadow-blue-600/30'
+                          : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                      }`}
+                    >
+                      <Heart className={`w-4 h-4 ${liked ? 'fill-white text-white' : ''}`} />
+                      <span>Like {likeCount}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* CASE 3: PHOTO PROMPT ONLY (Standard / Legacy Photo Prompt) */}
+            {!hasVideoPrompt && (
+              <div className="rounded-3xl bg-white dark:bg-zinc-850 p-5 sm:p-7 border border-zinc-200/80 dark:border-zinc-800 shadow-sm space-y-4 sm:space-y-5">
+                {/* Card Header */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-xs font-black uppercase tracking-widest text-purple-600 dark:text-purple-400">
+                        PROMPT
+                      </h2>
+                      <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                        Optimized for {modelOrToolName}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Save Button */}
+                  <button
+                    type="button"
+                    onClick={handleToggleSave}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                      saved
+                        ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
+                        : 'bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700'
+                    }`}
+                  >
+                    {saved ? <BookmarkCheck className="w-4 h-4 text-amber-500 fill-amber-500" /> : <Bookmark className="w-4 h-4" />}
+                    <span>{saved ? 'Saved' : 'Save'}</span>
+                  </button>
+                </div>
+
+                {/* Dedicated Inner Box for Prompt Text */}
+                <div className="relative rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200/80 dark:border-zinc-800 p-4 sm:p-6 text-xs sm:text-sm font-mono text-zinc-900 dark:text-zinc-100 leading-relaxed shadow-inner overflow-hidden select-text h-60 sm:h-72 flex flex-col">
+                  {!isUnlocked && (
+                    <div className="absolute inset-0 z-20 backdrop-blur-md bg-white/95 dark:bg-zinc-900/95 rounded-2xl flex flex-col items-center justify-center p-4 text-center space-y-3">
+                      <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center justify-center shadow-md animate-bounce">
+                        <Lock className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-zinc-900 dark:text-white text-sm sm:text-base">Unlock the full prompt</h4>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 max-w-xs">
+                          Prompt will unlock automatically in <span className="font-bold text-emerald-600 dark:text-emerald-400">{countdown}s</span> — free.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar">
+                    <pre className="whitespace-pre-wrap font-sans sm:font-mono text-xs sm:text-sm select-text break-words">
+                      {photoPromptText || post.fullPrompt}
+                    </pre>
+                  </div>
+                </div>
+
+                {/* Card Footer Actions: Copy + Like */}
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  {fc.promptCopy && fc.copyButton && (
+                    <button
+                      type="button"
+                      onClick={handleCopyPhotoPrompt}
+                      disabled={!isUnlocked}
+                      className={`inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer shadow-md active:scale-95 ${
+                        !isUnlocked
+                          ? 'bg-zinc-200 dark:bg-zinc-800 text-zinc-400 cursor-not-allowed border border-zinc-300 dark:border-zinc-700'
+                          : photoCopied
+                          ? 'bg-emerald-600 text-white shadow-emerald-600/30'
+                          : 'bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-orange-500/25'
+                      }`}
+                    >
+                      {!isUnlocked ? (
+                        <>
+                          <Clock className="w-4 h-4 animate-spin" />
+                          <span>Locked ({countdown}s)</span>
+                        </>
+                      ) : photoCopied ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  {/* Like Button */}
+                  <button
+                    type="button"
+                    onClick={handleLike}
+                    className={`inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer shadow-sm active:scale-95 ${
+                      liked
+                        ? 'bg-blue-600 text-white shadow-blue-600/30'
+                        : 'bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30'
+                    }`}
+                  >
+                    <Heart className={`w-4 h-4 ${liked ? 'fill-white text-white' : ''}`} />
+                    <span>Like {likeCount}</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* SECTION 3: SHARE */}
             {fc.postShareEnabled !== false && fc.socialShareButtons !== false && (

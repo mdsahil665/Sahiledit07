@@ -2,12 +2,13 @@ import { PromptPost, PostCardConfig } from '../types';
 import { getPostCreatedAtMillis } from './promptStore';
 
 export type BadgeMode = 'automatic' | 'none' | 'manual';
-export type BadgeType = 'NEW' | 'AI PROMPT' | 'PHOTO PROMPT' | 'CREATIVE' | 'TRENDING' | 'HOT' | 'PREMIUM';
+export type BadgeType = 'NEW' | 'AI PROMPT' | 'PHOTO PROMPT' | 'VIDEO PROMPT' | 'CREATIVE' | 'TRENDING' | 'HOT' | 'PREMIUM';
 
 export const ALL_BADGE_TYPES: BadgeType[] = [
   'NEW',
   'AI PROMPT',
   'PHOTO PROMPT',
+  'VIDEO PROMPT',
   'CREATIVE',
   'TRENDING',
   'HOT',
@@ -45,6 +46,11 @@ export function getLatest3NewPostIds(allPosts: PromptPost[]): Set<string> {
 export function calculateSmartContentBadge(post: Partial<PromptPost>): BadgeType | null {
   if (!post) return null;
 
+  // Explicit check for video prompt postType
+  if (post.postType === 'video_prompt') {
+    return 'VIDEO PROMPT';
+  }
+
   // 1. Explicit admin flags on the post document
   if (post.trending) {
     return 'TRENDING';
@@ -64,6 +70,27 @@ export function calculateSmartContentBadge(post: Partial<PromptPost>): BadgeType
   const tags = Array.isArray(post.tags) ? post.tags.map((t) => String(t).toLowerCase()).join(' ') : '';
 
   const combinedContent = `${title} ${desc} ${prompt} ${category} ${tags}`;
+
+  // Video focus patterns
+  const videoPatterns = [
+    'video prompt',
+    'video generation',
+    'runway gen',
+    'runway',
+    'luma',
+    'dream machine',
+    'sora',
+    'kling',
+    'pika',
+    'haiper',
+    'hailuo',
+    'cinematic video',
+    'camera motion',
+    'video ai',
+  ];
+  if (videoPatterns.some((pattern) => combinedContent.includes(pattern)) || category === 'video' || category === 'video-prompt') {
+    return 'VIDEO PROMPT';
+  }
 
   // 2. Photo / Photography focus terms
   const photoPatterns = [
@@ -152,6 +179,7 @@ export function normalizeBadgeType(type?: string | null): BadgeType | string {
   if (clean === 'NEW') return 'NEW';
   if (clean === 'AI PROMPT' || clean === 'AIPROMPT') return 'AI PROMPT';
   if (clean === 'PHOTO PROMPT' || clean === 'PHOTOPROMPT') return 'PHOTO PROMPT';
+  if (clean === 'VIDEO PROMPT' || clean === 'VIDEOPROMPT' || clean === 'VIDEO') return 'VIDEO PROMPT';
   if (clean === 'CREATIVE') return 'CREATIVE';
   if (clean === 'TRENDING') return 'TRENDING';
   if (clean === 'HOT') return 'HOT';

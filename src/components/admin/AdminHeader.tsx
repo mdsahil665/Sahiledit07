@@ -10,13 +10,18 @@ import {
   CheckCircle2,
   X,
   AlertTriangle,
+  ArrowLeft,
 } from 'lucide-react';
 import { NotificationItem } from '../../types';
 import { promptStore } from '../../services/promptStore';
+import { AdminTab } from './AdminSidebar';
 
 interface AdminHeaderProps {
   activeTabTitle: string;
   categoryGroup?: string;
+  canGoBack?: boolean;
+  onBack?: () => void;
+  onNavigateTab?: (tab: AdminTab) => void;
   onOpenMobileMenu: () => void;
   onOpenGlobalSearch: () => void;
   notifications: NotificationItem[];
@@ -28,6 +33,9 @@ interface AdminHeaderProps {
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
   activeTabTitle,
   categoryGroup = 'Management',
+  canGoBack = false,
+  onBack,
+  onNavigateTab,
   onOpenMobileMenu,
   onOpenGlobalSearch,
   notifications,
@@ -42,25 +50,49 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-zinc-900/90 backdrop-blur-md border-b border-zinc-800 px-4 sm:px-6 py-3 transition-all">
-        <div className="flex items-center justify-between gap-4">
-          {/* Left: Hamburger (mobile) + Breadcrumb Navigation */}
-          <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-30 bg-zinc-900/95 backdrop-blur-md border-b border-zinc-800 px-3 sm:px-6 py-2.5 sm:py-3 transition-all">
+        <div className="flex items-center justify-between gap-3 sm:gap-4">
+          {/* Left: Mobile Hamburger + Back Button + Breadcrumb Navigation */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            {/* Mobile Hamburger Toggle */}
             <button
               onClick={onOpenMobileMenu}
-              className="lg:hidden p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors"
-              title="Open Navigation"
+              className="lg:hidden p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0 cursor-pointer"
+              title="Open Navigation Menu"
+              aria-label="Open Navigation Menu"
             >
               <Menu className="w-5 h-5" />
             </button>
 
-            <div>
-              <div className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
-                <span>Sahil Edits</span>
-                <span>/</span>
-                <span className="text-blue-400">{categoryGroup}</span>
+            {/* Dedicated Back Button */}
+            {canGoBack && onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-xl bg-zinc-800/90 hover:bg-zinc-700 border border-zinc-700/70 text-zinc-200 hover:text-white text-xs font-bold transition-all cursor-pointer min-w-[44px] min-h-[44px] shrink-0 shadow-sm group active:scale-95"
+                title="Go back to previous admin page"
+                aria-label="Go back to previous admin page"
+              >
+                <ArrowLeft className="w-4 h-4 text-blue-400 group-hover:-translate-x-0.5 transition-transform shrink-0" />
+                <span className="font-extrabold hidden sm:inline">Back</span>
+              </button>
+            )}
+
+            {/* Breadcrumb and Page Title */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-zinc-400 uppercase tracking-wider truncate">
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab ? onNavigateTab('dashboard') : (onBack ? onBack() : undefined)}
+                  className="hover:text-blue-400 transition-colors cursor-pointer truncate"
+                  title="Go to Admin Dashboard"
+                >
+                  SAHIL EDITS
+                </button>
+                <span className="text-zinc-600">/</span>
+                <span className="text-blue-400 font-semibold truncate">{categoryGroup}</span>
               </div>
-              <h1 className="text-lg sm:text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
+              <h1 className="text-base sm:text-lg lg:text-xl font-black text-white tracking-tight truncate flex items-center gap-2">
                 <span>{activeTabTitle}</span>
               </h1>
             </div>

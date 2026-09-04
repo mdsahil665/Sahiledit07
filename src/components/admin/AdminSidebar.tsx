@@ -33,6 +33,7 @@ import {
   X,
   PlusCircle,
   HelpCircle,
+  Film,
 } from 'lucide-react';
 
 export type AdminTab =
@@ -89,6 +90,7 @@ interface AdminSidebarProps {
   isOpenMobile: boolean;
   onCloseMobile: () => void;
   onOpenAddPost: () => void;
+  onAddVideoPrompt?: () => void;
   counts?: {
     posts?: number;
     categories?: number;
@@ -107,6 +109,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
   onOpenAddPost,
+  onAddVideoPrompt,
   counts = { posts: 0, categories: 0, pages: 0, comments: 0, users: 0, notifications: 0 },
 }) => {
   const navGroups: NavGroup[] = [
@@ -226,8 +229,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </button>
       </div>
 
-      {/* Quick Add Post Action Button */}
-      <div className="p-3 shrink-0">
+      {/* Quick Add Post Action Buttons */}
+      <div className="p-3 shrink-0 space-y-2">
         <button
           onClick={() => {
             onOpenAddPost();
@@ -241,6 +244,22 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           <PlusCircle className="w-4 h-4 shrink-0" />
           {!isCollapsed && <span className="truncate">Create New Post</span>}
         </button>
+
+        {onAddVideoPrompt && (
+          <button
+            onClick={() => {
+              onAddVideoPrompt();
+              onCloseMobile();
+            }}
+            className={`w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-bold text-xs shadow-lg shadow-rose-600/25 flex items-center justify-center gap-2 transition-all cursor-pointer ring-1 ring-white/20 ${
+              isCollapsed ? 'px-0' : ''
+            }`}
+            title="Create Video Prompt"
+          >
+            <Film className="w-4 h-4 shrink-0" />
+            {!isCollapsed && <span className="truncate">Create Video Prompt</span>}
+          </button>
+        )}
       </div>
 
       {/* Nav Groups Scrollable Area */}
