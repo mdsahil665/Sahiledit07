@@ -32,6 +32,9 @@ function getFallbackHtml(post: any, rawSlugOrId: string) {
   <meta name="description" content="${safeDesc}" />
   <link rel="canonical" href="${canonical}" id="seo-canonical-link" />
   
+  <!-- Google AdSense Site Verification & Ad Engine -->
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6065974907777223" crossorigin="anonymous"></script>
+
   <!-- Open Graph / WhatsApp / Facebook -->
   <meta property="og:type" content="article" id="seo-og-type" />
   <meta property="og:url" content="${canonical}" id="seo-og-url" />

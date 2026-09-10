@@ -188,8 +188,8 @@ const DEFAULT_AD_NETWORKS: Record<AdNetworkId, AdNetworkConfig> = {
   adsense: {
     id: 'adsense',
     name: 'Google AdSense',
-    publisherId: 'pub-9876543210123456',
-    scriptCode: '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9876543210123456" crossorigin="anonymous"></script>',
+    publisherId: 'pub-6065974907777223',
+    scriptCode: '<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6065974907777223" crossorigin="anonymous"></script>',
     enabled: true,
   },
   monetag: {
@@ -230,7 +230,7 @@ const DEFAULT_AD_NETWORKS: Record<AdNetworkId, AdNetworkConfig> = {
 };
 
 const DEFAULT_MONETIZATION: MonetizationSettings = {
-  publisherId: 'pub-9876543210123456',
+  publisherId: 'pub-6065974907777223',
   enabled: true,
   testMode: false,
   activeNetwork: 'adsense',

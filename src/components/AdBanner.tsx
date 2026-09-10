@@ -84,9 +84,10 @@ export const AdBanner: React.FC<AdBannerProps> = ({ position, settings, classNam
     if (!shouldShowLiveAd) return;
 
     if (activeNetId === 'adsense' && pubId) {
-      if (!document.querySelector(`script[src*="adsbygoogle.js?client=${pubId}"]`)) {
+      const formattedClient = pubId.startsWith('ca-') ? pubId : `ca-${pubId}`;
+      if (!document.querySelector('script[src*="pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"]')) {
         const script = document.createElement('script');
-        script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${pubId}`;
+        script.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${formattedClient}`;
         script.async = true;
         script.crossOrigin = 'anonymous';
         document.head.appendChild(script);

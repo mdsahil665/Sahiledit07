@@ -246,7 +246,7 @@ export const MonetizationAdminSection: React.FC = () => {
                 type="text"
                 value={currentNetworkConfig.publisherId || ''}
                 onChange={(e) => handleNetworkConfigChange(selectedNetwork, 'publisherId', e.target.value)}
-                placeholder="e.g. ca-pub-9876543210123456"
+                placeholder="e.g. ca-pub-6065974907777223"
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-white focus:outline-none focus:border-emerald-500"
               />
             </div>
