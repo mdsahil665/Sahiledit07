@@ -3,8 +3,9 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { handleCreateOrder, handleVerifyPayment, handleTestConnection } from "./server/paymentServer";
-import { fetchPostByIdServer, extractMainCoverImage } from "./server/postService";
+import { fetchPostByIdServer, extractMainCoverImage, fetchAllPostsServer } from "./server/postService";
 import { injectPostMetadataIntoHtml, getBaseUrl } from "./server/htmlInjector";
+import { getPromptSlug } from "./src/utils/promptUrl";
 
 const app = express();
 const PORT = 3000;
@@ -123,6 +124,82 @@ async function startServer() {
     }
   };
 
+  // Dynamic XML Sitemap Endpoint
+  app.get("/sitemap.xml", async (_req, res) => {
+    try {
+      const posts = await fetchAllPostsServer();
+      const baseUrl = "https://sahiledit.vercel.app";
+
+      const staticCategories = [
+        { slug: "chatgpt", priority: "0.8", changefreq: "daily" },
+        { slug: "gemini", priority: "0.8", changefreq: "daily" },
+        { slug: "image-prompt", priority: "0.9", changefreq: "daily" },
+        { slug: "video-prompt", priority: "0.9", changefreq: "daily" },
+      ];
+
+      const staticPages = [
+        "privacy-policy",
+        "terms-and-conditions",
+        "about-us",
+        "contact-us",
+        "disclaimer",
+        "dmca",
+        "refund-policy",
+        "cookie-policy",
+      ];
+
+      const escapeXml = (str: string) =>
+        str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+
+      const formatDate = (dateStr?: string) => {
+        if (!dateStr) return "2026-09-10";
+        try {
+          const d = new Date(dateStr);
+          return isNaN(d.getTime()) ? "2026-09-10" : d.toISOString().split("T")[0];
+        } catch {
+          return "2026-09-10";
+        }
+      };
+
+      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n  <!-- Homepage -->\n  <url>\n    <loc>${baseUrl}/</loc>\n    <lastmod>${formatDate(posts[0]?.updatedAt || posts[0]?.createdAt)}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n\n  <!-- Categories -->\n`;
+
+      for (const cat of staticCategories) {
+        xml += `  <url>\n    <loc>${baseUrl}/?category=${encodeURIComponent(cat.slug)}</loc>\n    <lastmod>2026-09-10</lastmod>\n    <changefreq>${cat.changefreq}</changefreq>\n    <priority>${cat.priority}</priority>\n  </url>\n`;
+      }
+
+      xml += `\n  <!-- Live Public Posts -->\n`;
+
+      for (const post of posts) {
+        const slug = getPromptSlug(post as any) || post.slug || post.id;
+        const canonicalUrl = `${baseUrl}/prompt/${encodeURIComponent(slug)}`;
+        const lastMod = formatDate(post.updatedAt || post.createdAt);
+        const coverImage = extractMainCoverImage(post);
+
+        xml += `  <url>\n    <loc>${canonicalUrl}</loc>\n    <lastmod>${lastMod}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n`;
+        if (coverImage) {
+          xml += `    <image:image>\n      <image:loc>${escapeXml(coverImage)}</image:loc>\n      <image:title>${escapeXml(post.title || "")}</image:title>\n    </image:image>\n`;
+        }
+        xml += `  </url>\n`;
+      }
+
+      xml += `\n  <!-- Policy & Legal Pages -->\n`;
+
+      for (const page of staticPages) {
+        xml += `  <url>\n    <loc>${baseUrl}/?page=${encodeURIComponent(page)}</loc>\n    <lastmod>2026-09-10</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.5</priority>\n  </url>\n`;
+      }
+
+      xml += `</urlset>\n`;
+
+      res.status(200).set({
+        "Content-Type": "application/xml; charset=utf-8",
+        "Cache-Control": "public, max-age=3600, s-maxage=14400, stale-while-revalidate=86400",
+      }).send(xml);
+    } catch (err) {
+      console.error("[Sitemap Generation Error]", err);
+      res.status(500).send("Error generating sitemap");
+    }
+  });
+
   // Explicit Prompt and Post Deep-Link Routes (handles crawlers and direct visits)
   app.get("/prompt/:id", handlePostRequest);
   app.get("/prompt/:id/*", handlePostRequest);
@@ -156,7 +233,7 @@ async function startServer() {
 
     // Production Catch-All Route
     app.get("*", (req, res, next) => {
-      if (req.path.startsWith("/post/") || req.query.prompt || req.query.post || req.query.p) {
+      if (req.path.startsWith("/post/") || req.path.startsWith("/prompt/") || req.query.prompt || req.query.post || req.query.p) {
         return handlePostRequest(req, res, next);
       }
       res.sendFile(path.join(distPath, "index.html"));

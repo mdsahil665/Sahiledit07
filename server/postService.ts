@@ -64,51 +64,60 @@ function parseFirestoreValue(val: any): any {
 // 1. post.gallery[0] / item with isCover === true
 // 2. post.images[0]
 // 3. post.imageUrl or post.image
-// 4. Safe default OG image
+// Returns the valid public HTTP/HTTPS URL, or empty string if no valid public image exists.
+// Never invent fake images or return base64 data URIs.
 export function extractMainCoverImage(post: Partial<DecodedPost> | null | undefined): string {
-  const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
-  if (!post) return DEFAULT_IMAGE;
+  if (!post) return '';
 
   // 1. Check gallery array
   if (post.gallery && Array.isArray(post.gallery) && post.gallery.length > 0) {
     // Look for explicit cover
     for (const item of post.gallery) {
       if (typeof item === 'object' && item !== null) {
-        if (item.isCover && typeof item.url === 'string' && item.url.trim().length > 0) {
+        if (item.isCover && typeof item.url === 'string' && isValidHttpUrl(item.url)) {
           return sanitizeImageUrl(item.url.trim());
         }
       }
     }
-    // Otherwise use first item in gallery
-    const first = post.gallery[0];
-    if (typeof first === 'string' && first.trim().length > 0) {
-      return sanitizeImageUrl(first.trim());
-    }
-    if (typeof first === 'object' && first !== null && typeof (first as any).url === 'string' && (first as any).url.trim().length > 0) {
-      return sanitizeImageUrl((first as any).url.trim());
+    // Otherwise use first valid item in gallery
+    for (const item of post.gallery) {
+      if (typeof item === 'string' && isValidHttpUrl(item)) {
+        return sanitizeImageUrl(item.trim());
+      }
+      if (typeof item === 'object' && item !== null && typeof (item as any).url === 'string' && isValidHttpUrl((item as any).url)) {
+        return sanitizeImageUrl((item as any).url.trim());
+      }
     }
   }
 
-  // 2. Check images array (first image is Main Cover)
+  // 2. Check images array (first valid image is Main Cover)
   if (post.images && Array.isArray(post.images) && post.images.length > 0) {
-    const firstImg = post.images[0];
-    if (typeof firstImg === 'string' && firstImg.trim().length > 0) {
-      return sanitizeImageUrl(firstImg.trim());
-    }
-    if (typeof firstImg === 'object' && firstImg !== null && typeof (firstImg as any).url === 'string' && (firstImg as any).url.trim().length > 0) {
-      return sanitizeImageUrl((firstImg as any).url.trim());
+    for (const img of post.images) {
+      if (typeof img === 'string' && isValidHttpUrl(img)) {
+        return sanitizeImageUrl(img.trim());
+      }
+      if (typeof img === 'object' && img !== null && typeof (img as any).url === 'string' && isValidHttpUrl((img as any).url)) {
+        return sanitizeImageUrl((img as any).url.trim());
+      }
     }
   }
 
   // 3. Check imageUrl or image field
-  if (typeof post.imageUrl === 'string' && post.imageUrl.trim().length > 0) {
+  if (typeof post.imageUrl === 'string' && isValidHttpUrl(post.imageUrl)) {
     return sanitizeImageUrl(post.imageUrl.trim());
   }
-  if (typeof (post as any).image === 'string' && (post as any).image.trim().length > 0) {
+  if (typeof (post as any).image === 'string' && isValidHttpUrl((post as any).image)) {
     return sanitizeImageUrl((post as any).image.trim());
   }
 
-  return DEFAULT_IMAGE;
+  return '';
+}
+
+function isValidHttpUrl(url: string | undefined | null): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (trimmed.startsWith('data:')) return false; // Do not use data URIs for social meta tags
+  return trimmed.startsWith('https://') || trimmed.startsWith('http://') || trimmed.startsWith('//');
 }
 
 function sanitizeImageUrl(url: string): string {
@@ -269,5 +278,82 @@ export async function fetchPostByIdServer(postIdOrSlug: string): Promise<Decoded
   }
 
   return foundPost;
+}
+
+let allPostsCache: { posts: DecodedPost[]; timestamp: number } | null = null;
+const ALL_POSTS_CACHE_TTL_MS = 60 * 1000; // 1 minute
+
+/**
+ * Fetches all published posts from Firestore or falls back to INITIAL_PROMPTS.
+ * Used for dynamic sitemap generation and crawler indexing.
+ */
+export async function fetchAllPostsServer(): Promise<DecodedPost[]> {
+  const now = Date.now();
+  if (allPostsCache && now - allPostsCache.timestamp < ALL_POSTS_CACHE_TTL_MS) {
+    return allPostsCache.posts;
+  }
+
+  const projectId = FIREBASE_CONFIG.projectId;
+  const databaseId = FIREBASE_CONFIG.firestoreDatabaseId;
+  const apiKey = FIREBASE_CONFIG.apiKey;
+
+  try {
+    const queryUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${databaseId}/documents:runQuery${apiKey ? `?key=${apiKey}` : ''}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(queryUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        structuredQuery: {
+          from: [{ collectionId: 'prompts' }],
+          orderBy: [{ field: { fieldPath: 'createdAt' }, direction: 'DESCENDING' }],
+          limit: 100,
+        },
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (res.ok) {
+      const listData = await res.json();
+      if (Array.isArray(listData)) {
+        const posts: DecodedPost[] = [];
+        for (const item of listData) {
+          if (item.document && item.document.fields) {
+            const docId = item.document.name.split('/').pop() || '';
+            const parsed: any = { id: docId };
+            for (const k of Object.keys(item.document.fields)) {
+              parsed[k] = parseFirestoreValue(item.document.fields[k]);
+            }
+            const postObj = parsed as DecodedPost;
+            // Only include published posts
+            if (postObj.status !== 'draft') {
+              posts.push(postObj);
+
+              // Cache in individual map as well
+              postCache.set(docId, { post: postObj, timestamp: now });
+              const postSlug = getPromptSlug(postObj);
+              if (postSlug) {
+                postCache.set(postSlug, { post: postObj, timestamp: now });
+              }
+            }
+          }
+        }
+
+        if (posts.length > 0) {
+          allPostsCache = { posts, timestamp: now };
+          return posts;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[fetchAllPostsServer Error]', err);
+  }
+
+  // Fallback to INITIAL_PROMPTS
+  const localPublished = INITIAL_PROMPTS.filter((p) => p.status !== 'draft') as DecodedPost[];
+  allPostsCache = { posts: localPublished, timestamp: now };
+  return localPublished;
 }
 

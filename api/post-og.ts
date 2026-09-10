@@ -16,11 +16,22 @@ try {
 function getFallbackHtml(post: any, rawSlugOrId: string) {
   const postTitle = (post?.seoTitle || post?.title || 'AI Prompt').trim();
   const safeTitle = postTitle ? `${escapeHtml(postTitle)} - Sahil Edits` : 'Sahil Edits – Premium AI Prompt Library';
-  const postDesc = post?.shortDescription || post?.metaDescription || post?.fullPrompt || 'Discover and copy trending AI prompts with 1-click on Sahil Edits.';
+  const postDesc = post?.shortDescription || post?.metaDescription || post?.videoPrompt || post?.fullPrompt || 'Discover and copy trending AI prompts with 1-click on Sahil Edits.';
   const safeDesc = escapeHtml(cleanDescription(postDesc, 200));
-  const safeImg = post ? extractMainCoverImage(post) : 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
+  const safeImg = post ? extractMainCoverImage(post) : '';
   const slug = post ? getPromptSlug(post) : rawSlugOrId;
   const canonical = `https://sahiledit.vercel.app/prompt/${encodeURIComponent(slug)}`;
+
+  const imageMetaTags = safeImg
+    ? `
+  <meta property="og:image" content="${safeImg}" id="seo-og-image" />
+  <meta property="og:image:secure_url" content="${safeImg}" />
+  <meta property="og:image:alt" content="${safeTitle}" />
+  <meta property="og:image:type" content="image/png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:image" content="${safeImg}" id="seo-twitter-image" />`
+    : '';
 
   return `<!doctype html>
 <html lang="en" class="dark">
@@ -39,13 +50,7 @@ function getFallbackHtml(post: any, rawSlugOrId: string) {
   <meta property="og:type" content="article" id="seo-og-type" />
   <meta property="og:url" content="${canonical}" id="seo-og-url" />
   <meta property="og:title" content="${safeTitle}" id="seo-og-title" />
-  <meta property="og:description" content="${safeDesc}" id="seo-og-description" />
-  <meta property="og:image" content="${safeImg}" id="seo-og-image" />
-  <meta property="og:image:secure_url" content="${safeImg}" />
-  <meta property="og:image:alt" content="${safeTitle}" />
-  <meta property="og:image:type" content="image/png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
+  <meta property="og:description" content="${safeDesc}" id="seo-og-description" />${imageMetaTags}
   <meta property="og:site_name" content="Sahil Edits" />
   
   <!-- Twitter Card -->
@@ -53,7 +58,6 @@ function getFallbackHtml(post: any, rawSlugOrId: string) {
   <meta name="twitter:url" content="${canonical}" id="seo-twitter-url" />
   <meta name="twitter:title" content="${safeTitle}" id="seo-twitter-title" />
   <meta name="twitter:description" content="${safeDesc}" id="seo-twitter-description" />
-  <meta name="twitter:image" content="${safeImg}" id="seo-twitter-image" />
 
   <style>
     html, body, #root {

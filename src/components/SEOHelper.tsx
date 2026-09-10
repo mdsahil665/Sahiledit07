@@ -12,7 +12,7 @@ interface SEOHelperProps {
 }
 
 const BASE_URL = typeof window !== 'undefined' ? window.location.origin : 'https://sahiledit.vercel.app';
-const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80';
+const DEFAULT_IMAGE = 'https://res.cloudinary.com/i4v4x4eg/image/upload/v1788598067/l1t2aclxe7u0pjepokvu.png';
 
 export const SEOHelper: React.FC<SEOHelperProps> = ({
   activePrompt,

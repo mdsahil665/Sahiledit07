@@ -1,6 +1,19 @@
 {
   "version": 2,
+  "functions": {
+    "api/*.ts": {
+      "includeFiles": "dist/**"
+    }
+  },
   "rewrites": [
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/sitemap"
+    },
+    {
+      "source": "/api/sitemap",
+      "destination": "/api/sitemap"
+    },
     {
       "source": "/api/payment/create-order",
       "destination": "/api/payment/create-order"
@@ -27,7 +40,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": ".*(facebookexternalhit|facebookcatalog|Facebot|Twitterbot|twitterbot|WhatsApp|whatsapp|TelegramBot|telegrambot|Slackbot|slackbot|Discordbot|discordbot|Pinterest|pinterest|LinkedInBot|linkedinbot|Googlebot|googlebot|bingbot|Baiduspider|yandex|Applebot|applebot|vkShare|redditbot|curl|wget).*"
+          "value": ".*(Mediapartners-Google|mediapartners-google|AdsBot-Google|adsbot-google|Google-Display-Ads-Bot|google-display-ads-bot|Google-InspectionTool|google-inspectiontool|Googlebot|googlebot|Google|google|AdSense|adsense|facebookexternalhit|facebookcatalog|Facebot|Twitterbot|twitterbot|WhatsApp|whatsapp|TelegramBot|telegrambot|Slackbot|slackbot|Discordbot|discordbot|Pinterest|pinterest|LinkedInBot|linkedinbot|bingbot|Baiduspider|yandex|Applebot|applebot|vkShare|redditbot|curl|wget|bot|crawler|spider).*"
         }
       ],
       "destination": "/api/post-og?id=:id"
@@ -38,7 +51,7 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": ".*(facebookexternalhit|facebookcatalog|Facebot|Twitterbot|twitterbot|WhatsApp|whatsapp|TelegramBot|telegrambot|Slackbot|slackbot|Discordbot|discordbot|Pinterest|pinterest|LinkedInBot|linkedinbot|Googlebot|googlebot|bingbot|Baiduspider|yandex|Applebot|applebot|vkShare|redditbot|curl|wget).*"
+          "value": ".*(Mediapartners-Google|mediapartners-google|AdsBot-Google|adsbot-google|Google-Display-Ads-Bot|google-display-ads-bot|Google-InspectionTool|google-inspectiontool|Googlebot|googlebot|Google|google|AdSense|adsense|facebookexternalhit|facebookcatalog|Facebot|Twitterbot|twitterbot|WhatsApp|whatsapp|TelegramBot|telegrambot|Slackbot|slackbot|Discordbot|discordbot|Pinterest|pinterest|LinkedInBot|linkedinbot|bingbot|Baiduspider|yandex|Applebot|applebot|vkShare|redditbot|curl|wget|bot|crawler|spider).*"
         }
       ],
       "destination": "/api/post-og?id=:id"

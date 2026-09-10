@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <!-- Homepage -->
   <url>
     <loc>https://sahiledit.vercel.app/</loc>
@@ -11,113 +12,381 @@
   <!-- Categories -->
   <url>
     <loc>https://sahiledit.vercel.app/?category=chatgpt</loc>
-    <lastmod>2026-08-09</lastmod>
-    <changefreq>weekly</changefreq>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://sahiledit.vercel.app/?category=gemini</loc>
-    <lastmod>2026-08-09</lastmod>
-    <changefreq>weekly</changefreq>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://sahiledit.vercel.app/?category=image-prompt</loc>
-    <lastmod>2026-08-09</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
   </url>
   <url>
     <loc>https://sahiledit.vercel.app/?category=video-prompt</loc>
+    <lastmod>2026-09-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- Live Public Posts -->
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/photo-prompt</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/ultra-close-golden-hour-cinematic-portrait-strict-identity-preservation-8k-photo</loc>
+    <lastmod>2026-08-08</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/spider-man</loc>
+    <lastmod>2026-08-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/elite-schoolboy-aura</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788598067/l1t2aclxe7u0pjepokvu.png</image:loc>
+      <image:title>Elite Schoolboy Aura 🔥</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/underwater-dream-prompt</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788597725/nhut9lwep6cean1y7wfu.png</image:loc>
+      <image:title>Underwater Dream prompt</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/luxury-king-birthday-poster-cinematic-birthday-edit</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788596698/ynght8vw13kfsnfgjtf0.png</image:loc>
+      <image:title>Luxury King Birthday Poster 👑 | Cinematic Birthday Edit</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/happy-birthday-legend</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788596426/bt66rxhjg9kwyfsk2yqk.png</image:loc>
+      <image:title>Happy Birthday Legend</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/indian-tricolor-cinematic-portrait</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788596014/zhhjhnhzl83bnuogbiv2.png</image:loc>
+      <image:title>Indian Tricolor Cinematic Portrait</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/15-august-proud-to-be-indian</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788595741/hdrluealzkf5penrdaom.png</image:loc>
+      <image:title>15 August 🇮🇳 | Proud to Be Indian</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/tiranga-look-stylish-independence-day-edit</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788595534/uaq91oco8v4lvu1wkoo0.png</image:loc>
+      <image:title>Tiranga Look 🇮🇳🔥 | Stylish Independence Day Edit</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/kissing-the-indian-flag</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788595461/ttjx3de1repdm0vjdxjw.png</image:loc>
+      <image:title>Kissing the Indian Flag 🇮🇳❤️</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/indian-flag-proud-indian-prompt</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788594998/ugevvdbmovsqj8fofmrj.png</image:loc>
+      <image:title>Indian Flag 🇮🇳 | Proud Indian prompt</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/happy-birthday-prompt</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788594652/h5sjo5cuvhthwnlnsgnb.jpg</image:loc>
+      <image:title>Happy Birthday 🎂✨ prompt</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/personal-color-analysis-best-colors-for-you</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788593891/fp4dnoh3ppyxu5ippxkz.png</image:loc>
+      <image:title>Personal Color Analysis | Best Colors for You</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/dark-red-cinematic-look</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788593197/fvkpdoibqczzqplxpsyy.png</image:loc>
+      <image:title>Dark Red Cinematic Look</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/instagram-dream</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788592759/kn0vtqoj2ysjb5c4nh4x.png</image:loc>
+      <image:title>Instagram Dream ✨📱</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/king-royal-attitude</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788592469/m9dtl5vmkwfikuzsyct0.png</image:loc>
+      <image:title>KING 👑 | Royal Attitude 🔥</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/khan-cinematic-portrait</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788591672/pltvuexrhijze2rajqya.png</image:loc>
+      <image:title>KHAN | Cinematic Portrait</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/black-suit-vibes</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788590330/uxef5lmhao4ri1xpr8ws.png</image:loc>
+      <image:title>Black Suit Vibes 🖤</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/12-rabi-ul-awwal-milad-juloos</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788589618/gscjz6w8xtdfnwmhympb.png</image:loc>
+      <image:title>12 Rabi-ul-Awwal ﷺ  | Milad Juloos</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/coffee-video-prompt</loc>
+    <lastmod>2026-09-06</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1788547631/cqrc0iwfvvxfsyz9dxoh.png</image:loc>
+      <image:title>Coffee video prompt</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/15-august-independence-day-happy-independence-day-india-jai-hind</loc>
+    <lastmod>2026-08-15</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1786738769/bkfdr45pmi42vxsaejls.png</image:loc>
+      <image:title>15 August Independence Day   Happy Independence Day India  Jai Hind </image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/happy-independence-day-2026-15-august-special-proud-to-be-indian-independence-da</loc>
+    <lastmod>2026-08-14</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1786716199/y4dzf1dtz9kofwby5j2y.png</image:loc>
+      <image:title>🇮🇳 Happy Independence Day 2026 | 15 August Special | Proud to Be Indian ❤️ | Independence Day Photo</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/premium-prompt-viral-birthday-instagram-story-happy-birthday-prompt</loc>
+    <lastmod>2026-08-14</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1786305523/randg1vqwqy2oibaeurw.png</image:loc>
+      <image:title>Premium prompt Viral Birthday Instagram Story 🎂👑 | HAPPY BIRTHDAY prompt </image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/golden-tiger-spirit-epic-cinematic-8k-ai-portrait</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://res.cloudinary.com/i4v4x4eg/image/upload/v1786303705/ttiudnpwiux5hwabieuy.png</image:loc>
+      <image:title>Golden Tiger Spirit 🔥🐅 | Epic Cinematic 8K AI Portrait</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/neon-red-cyberpunk-portrait-dark-luxury-streetwear-aesthetic</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/black-gold-cinematic-portrait-dark-luxury-aesthetic</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/y2k-vampire-aesthetic-dark-flash-photography-gothic-cinematic-portrait</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/ultra-realistic-ai-face-reference-sheet-100-identity-lock-4-angles</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/ultra-realistic-studio-portrait-exact-face-reference-lock</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/motu-patlu-kheti-kar-rahe-hain-main-bana-kheti-ka-boss-village-comedy</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/mass-hero-red-fury</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/i-stand-with-sonam-wangchuk-justice-for-students-mass-hunger-strike</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/golden-hour-gangster-look-cinematic-portrait</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/ultra-realistic-cinematic-8k-premium-portrait-urban-fashion-dslr-look</loc>
+    <lastmod>2026-08-09</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://sahiledit.vercel.app/prompt/cinematic-ocean-vibes-blue-hour-dreamy-aesthetic-romantic-mood</loc>
     <lastmod>2026-08-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
-  <!-- Public Prompts -->
-  <url>
-    <loc>https://sahiledit.vercel.app/?prompt=prompt-1</loc>
-    <lastmod>2026-08-09</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://sahiledit.vercel.app/?prompt=prompt-2</loc>
-    <lastmod>2026-08-09</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://sahiledit.vercel.app/?prompt=prompt-3</loc>
-    <lastmod>2026-08-09</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://sahiledit.vercel.app/?prompt=prompt-4</loc>
-    <lastmod>2026-08-09</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://sahiledit.vercel.app/?prompt=prompt-5</loc>
-    <lastmod>2026-08-09</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://sahiledit.vercel.app/?prompt=prompt-6</loc>
-    <lastmod>2026-08-09</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
-  <!-- Pages -->
+  <!-- Policy & Legal Pages -->
   <url>
     <loc>https://sahiledit.vercel.app/?page=privacy-policy</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-09-10</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://sahiledit.vercel.app/?page=terms-and-conditions</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-09-10</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://sahiledit.vercel.app/?page=about-us</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-09-10</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://sahiledit.vercel.app/?page=contact-us</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-09-10</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://sahiledit.vercel.app/?page=disclaimer</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-09-10</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://sahiledit.vercel.app/?page=dmca</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-09-10</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://sahiledit.vercel.app/?page=refund-policy</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-09-10</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>
   <url>
     <loc>https://sahiledit.vercel.app/?page=cookie-policy</loc>
-    <lastmod>2026-08-09</lastmod>
+    <lastmod>2026-09-10</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>
   </url>

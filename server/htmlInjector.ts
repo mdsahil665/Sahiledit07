@@ -67,11 +67,11 @@ export function injectPostMetadataIntoHtml(
   const postTitle = (post.seoTitle || post.title || 'AI Prompt').trim();
   const pageTitle = postTitle.toLowerCase().includes('sahil edits') ? postTitle : `${postTitle} – Sahil Edits`;
   const postDescription = cleanDescription(
-    post.shortDescription || post.metaDescription || post.fullPrompt || `${postTitle} - Copy this high-precision AI prompt with 1-click on Sahil Edits.`
+    post.shortDescription || post.metaDescription || (post as any).videoPrompt || post.fullPrompt || `${postTitle} - Copy this high-precision AI prompt with 1-click on Sahil Edits.`
   );
 
   const mainCoverImage = extractMainCoverImage(post);
-  const imageMimeType = getImageMimeType(mainCoverImage);
+  const imageMimeType = mainCoverImage ? getImageMimeType(mainCoverImage) : '';
 
   let html = rawHtml;
 
@@ -131,11 +131,16 @@ export function injectPostMetadataIntoHtml(
     );
   }
 
-  if (/<meta property="og:image" content=".*?"[^>]*>/is.test(html)) {
-    html = html.replace(
-      /<meta property="og:image" content=".*?"[^>]*>/is,
-      `<meta property="og:image" content="${mainCoverImage}" id="seo-og-image" />\n    <meta property="og:image:secure_url" content="${mainCoverImage}" />\n    <meta property="og:image:alt" content="${escapeHtml(postTitle)}" />\n    <meta property="og:image:type" content="${imageMimeType}" />\n    <meta property="og:image:width" content="1200" />\n    <meta property="og:image:height" content="630" />`
-    );
+  if (mainCoverImage) {
+    if (/<meta property="og:image" content=".*?"[^>]*>/is.test(html)) {
+      html = html.replace(
+        /<meta property="og:image" content=".*?"[^>]*>/is,
+        `<meta property="og:image" content="${mainCoverImage}" id="seo-og-image" />\n    <meta property="og:image:secure_url" content="${mainCoverImage}" />\n    <meta property="og:image:alt" content="${escapeHtml(postTitle)}" />\n    <meta property="og:image:type" content="${imageMimeType}" />\n    <meta property="og:image:width" content="1200" />\n    <meta property="og:image:height" content="630" />`
+      );
+    }
+  } else {
+    // If no real image exists (e.g. video only), remove any default og:image placeholder
+    html = html.replace(/<meta property="og:image[^>]*>\s*/gi, '');
   }
 
   if (/<meta property="og:site_name" content=".*?"[^>]*>/is.test(html)) {
@@ -174,15 +179,20 @@ export function injectPostMetadataIntoHtml(
     );
   }
 
-  if (/<meta name="twitter:image" content=".*?"[^>]*>/is.test(html)) {
-    html = html.replace(
-      /<meta name="twitter:image" content=".*?"[^>]*>/is,
-      `<meta name="twitter:image" content="${mainCoverImage}" id="seo-twitter-image" />\n    <meta name="twitter:image:alt" content="${escapeHtml(postTitle)}" />`
-    );
+  if (mainCoverImage) {
+    if (/<meta name="twitter:image" content=".*?"[^>]*>/is.test(html)) {
+      html = html.replace(
+        /<meta name="twitter:image" content=".*?"[^>]*>/is,
+        `<meta name="twitter:image" content="${mainCoverImage}" id="seo-twitter-image" />\n    <meta name="twitter:image:alt" content="${escapeHtml(postTitle)}" />`
+      );
+    }
+  } else {
+    // If no real image exists, remove twitter:image tag
+    html = html.replace(/<meta name="twitter:image[^>]*>\s*/gi, '');
   }
 
   // 6. Inject Article JSON-LD Structured Data
-  const jsonLdPost = {
+  const jsonLdPost: Record<string, any> = {
     '@context': 'https://schema.org',
     '@type': 'CreativeWork',
     '@id': canonicalUrl,
@@ -190,7 +200,6 @@ export function injectPostMetadataIntoHtml(
     name: post.title,
     headline: post.title,
     description: postDescription,
-    image: [mainCoverImage],
     datePublished: post.createdAt || new Date().toISOString(),
     dateModified: post.updatedAt || post.createdAt || new Date().toISOString(),
     author: {
@@ -204,12 +213,23 @@ export function injectPostMetadataIntoHtml(
       url: baseUrl,
       logo: {
         '@type': 'ImageObject',
-        url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
+        url: 'https://res.cloudinary.com/i4v4x4eg/image/upload/v1788598067/l1t2aclxe7u0pjepokvu.png',
       },
     },
     keywords: post.tags ? post.tags.join(', ') : 'AI prompts, ChatGPT, Midjourney, Flux',
     articleSection: post.categoryName || 'AI Prompts',
   };
+
+  if (mainCoverImage) {
+    jsonLdPost.image = [mainCoverImage];
+  }
+  if ((post as any).videoPrompt) {
+    jsonLdPost.video = {
+      '@type': 'VideoObject',
+      name: post.title,
+      description: (post as any).videoPrompt,
+    };
+  }
 
   const jsonLdScript = `\n    <script type="application/ld+json" id="seo-jsonld-article">\n    ${JSON.stringify(jsonLdPost, null, 2)}\n    </script>`;
 
