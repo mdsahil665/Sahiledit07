@@ -7,6 +7,14 @@
   },
   "rewrites": [
     {
+      "source": "/ads.txt",
+      "destination": "/api/ads"
+    },
+    {
+      "source": "/api/ads",
+      "destination": "/api/ads"
+    },
+    {
       "source": "/sitemap.xml",
       "destination": "/api/sitemap"
     },

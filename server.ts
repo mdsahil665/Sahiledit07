@@ -124,6 +124,14 @@ async function startServer() {
     }
   };
 
+  // Google AdSense ads.txt Endpoint
+  app.get("/ads.txt", (_req, res) => {
+    res.status(200).set({
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "public, max-age=3600, s-maxage=86400",
+    }).send("google.com, pub-6065974907777223, DIRECT, f08c47fec0942fa0\n");
+  });
+
   // Dynamic XML Sitemap Endpoint
   app.get("/sitemap.xml", async (_req, res) => {
     try {
