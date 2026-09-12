@@ -21,6 +21,11 @@ import { CategoryFormModal } from './components/admin/CategoryFormModal';
 import { SEOHelper } from './components/SEOHelper';
 import { promptStore, sortPostsByCreatedAtDesc } from './services/promptStore';
 import { getPromptSlug, extractPromptIdFromParam, createSlugFromTitle } from './utils/promptUrl';
+import {
+  isPostStrictlyInCategory,
+  normalizeCategoryKey,
+  getCategoryDisplayName,
+} from './utils/categoryUtils';
 import { PromptPost, Category, CustomPage } from './types';
 import {
   SearchX,
@@ -43,12 +48,22 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 function AppContent() {
-  const { currentUser, isAdmin } = useAuth();
+  const { currentUser, loading: authLoading, isAdmin } = useAuth();
   const [posts, setPosts] = useState<PromptPost[]>(() => promptStore.getPosts());
   const [categories, setCategories] = useState<Category[]>(() => promptStore.getCategories());
   const [featureControls, setFeatureControls] = useState(() => promptStore.getFeatureControls());
   const [websiteSections, setWebsiteSections] = useState(() => promptStore.getWebsiteSections());
-  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+
+  // Check if browser was currently restoring or loaded on an admin route
+  const isInitialAdminRoute = useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    const search = window.location.search.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    const path = window.location.pathname.toLowerCase();
+    return search.includes('admin') || hash.includes('admin') || path.includes('/admin');
+  }, []);
+
+  const [showAdminDashboard, setShowAdminDashboard] = useState<boolean>(() => isInitialAdminRoute);
   const [showPremiumPage, setShowPremiumPage] = useState(false);
 
   // Search, Category, and Active Tab Filter
@@ -123,9 +138,19 @@ function AppContent() {
       const isAdminRoute = search.includes('admin') || hash.includes('admin') || path.includes('/admin');
 
       if (isAdminRoute) {
+        // While Firebase Auth is restoring the session, preserve the admin route and do not redirect!
+        if (authLoading) {
+          setShowAdminDashboard(true);
+          return;
+        }
+
         if (isAdmin) {
           setShowAdminDashboard(true);
+          // If login modal was open, close it cleanly
+          setShowLoginModal(false);
         } else {
+          // Firebase Auth initialization finished and user is not admin
+          setShowAdminDashboard(false);
           setShowLoginModal(true);
           showToast('Admin Authentication Required', 'Please log in with an Admin account.', 'error');
         }
@@ -155,6 +180,7 @@ function AppContent() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
         e.preventDefault();
+        if (authLoading) return;
         if (isAdmin) {
           if (!window.location.pathname.startsWith('/admin')) {
             window.history.pushState({ type: 'admin', tab: 'dashboard' }, '', '/admin/dashboard');
@@ -174,7 +200,7 @@ function AppContent() {
       window.removeEventListener('hashchange', checkUrlRoutes);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isAdmin]);
+  }, [authLoading, isAdmin]);
 
   const refreshData = () => {
     setPosts(promptStore.getPosts());
@@ -207,67 +233,36 @@ function AppContent() {
     return publishedPosts.find((p) => p.trending === true) || null;
   }, [publishedPosts]);
 
-  // Helper to match post to selected category
+  // Strict helper to match post to selected category
   const isPostInCategory = useCallback((post: PromptPost, catSelection: string | null) => {
-    if (!catSelection) return true;
-    const target = catSelection.trim().toLowerCase();
-
-    // 1. Direct categoryId or categoryName
-    if (post.categoryId && post.categoryId.toLowerCase() === target) return true;
-    if (post.categoryName && post.categoryName.toLowerCase() === target) return true;
-
-    // 2. Handle category aliases like man/men, woman/women, couple, family, birthday
-    const aliasMap: Record<string, string[]> = {
-      man: ['man', 'men', 'male', 'boy'],
-      men: ['man', 'men', 'male', 'boy'],
-      woman: ['woman', 'women', 'female', 'girl'],
-      women: ['woman', 'women', 'female', 'girl'],
-      couple: ['couple', 'couples', 'pair', 'romantic', 'love'],
-      family: ['family', 'families', 'parents', 'kids'],
-      birthday: ['birthday', 'bday', 'celebration', 'party'],
-    };
-
-    const aliases = aliasMap[target] || [target];
-
-    // 3. Check tags
-    if (post.tags && Array.isArray(post.tags)) {
-      if (post.tags.some((tag) => aliases.some((a) => tag.toLowerCase().includes(a)))) {
-        return true;
-      }
-    }
-
-    // 4. Check title, description, prompt text
-    const title = (post.title || '').toLowerCase();
-    const desc = (post.shortDescription || '').toLowerCase();
-    const prompt = (post.fullPrompt || '').toLowerCase();
-
-    return aliases.some((a) => title.includes(a) || desc.includes(a) || prompt.includes(a));
+    return isPostStrictlyInCategory(post, catSelection);
   }, []);
 
   // Display name for selected category
   const selectedCategoryDisplayName = useMemo(() => {
     if (!selectedCategory) return null;
+    const targetNorm = normalizeCategoryKey(selectedCategory);
     const found = categories.find(
       (c) =>
-        c.id.toLowerCase() === selectedCategory.toLowerCase() ||
-        c.name.toLowerCase() === selectedCategory.toLowerCase() ||
-        c.slug.toLowerCase() === selectedCategory.toLowerCase()
+        normalizeCategoryKey(c.id) === targetNorm ||
+        normalizeCategoryKey(c.slug) === targetNorm ||
+        normalizeCategoryKey(c.name) === targetNorm
     );
     if (found) return found.name;
-    return selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1);
+    return getCategoryDisplayName(selectedCategory);
   }, [selectedCategory, categories]);
 
-  // Real post count for selected category
+  // Real post count strictly for selected category
   const categoryPostCount = useMemo(() => {
     if (!selectedCategory) return 0;
-    return publishedPosts.filter((p) => isPostInCategory(p, selectedCategory)).length;
-  }, [publishedPosts, selectedCategory, isPostInCategory]);
+    return publishedPosts.filter((p) => isPostStrictlyInCategory(p, selectedCategory)).length;
+  }, [publishedPosts, selectedCategory]);
 
   // Filtered & Sorted Posts based on Search, Category, and Active Tab
   const filteredPosts = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     const result = publishedPosts.filter((post) => {
-      const matchesCategory = isPostInCategory(post, selectedCategory);
+      const matchesCategory = isPostStrictlyInCategory(post, selectedCategory);
       const matchesSearch =
         query === '' ||
         post.title.toLowerCase().includes(query) ||
@@ -296,7 +291,7 @@ function AppContent() {
 
     // Default 'latest': sorted by createdAt desc
     return sortPostsByCreatedAtDesc(result);
-  }, [publishedPosts, selectedCategory, searchQuery, activeTab, isPostInCategory]);
+  }, [publishedPosts, selectedCategory, searchQuery, activeTab]);
 
   const visiblePosts = useMemo(() => filteredPosts.slice(0, visibleCount), [filteredPosts, visibleCount]);
   const hasMore = visibleCount < filteredPosts.length;
@@ -550,12 +545,41 @@ function AppContent() {
     refreshData();
   };
 
-  const selectedCategoryObj = categories.find((c) => c.id === selectedCategory);
+  const selectedCategoryObj = useMemo(() => {
+    if (!selectedCategory) return undefined;
+    const targetNorm = normalizeCategoryKey(selectedCategory);
+    return categories.find(
+      (c) =>
+        normalizeCategoryKey(c.id) === targetNorm ||
+        normalizeCategoryKey(c.slug) === targetNorm ||
+        normalizeCategoryKey(c.name) === targetNorm
+    );
+  }, [selectedCategory, categories]);
 
   // Protected Admin Dashboard Route
   if (showAdminDashboard) {
+    if (authLoading) {
+      return (
+        <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-950 text-white select-none p-6">
+          <div className="flex flex-col items-center max-w-sm text-center">
+            <div className="relative mb-6">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-xl shadow-blue-500/20">
+                <ShieldCheck className="w-8 h-8 text-white animate-pulse" />
+              </div>
+              <div className="absolute -inset-2 rounded-3xl border border-blue-500/30 animate-ping opacity-25 pointer-events-none" />
+            </div>
+            <h2 className="text-xl font-bold tracking-tight text-white mb-2">Restoring Admin Session</h2>
+            <p className="text-sm text-slate-400">Verifying secure credentials with Firebase...</p>
+            <div className="w-48 h-1 bg-slate-800 rounded-full mt-6 overflow-hidden">
+              <div className="w-full h-full bg-blue-500 rounded-full animate-pulse" />
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (!isAdmin) {
-      // Direct access protection redirect
+      // Direct access protection redirect (only after Firebase Auth has resolved)
       setShowAdminDashboard(false);
       setShowLoginModal(true);
       showToast('Access Denied', 'Admin authentication required to access Dashboard.', 'error');
@@ -1037,7 +1061,10 @@ function AppContent() {
           setShowLoginModal(false);
           setLoginModalMode('login');
           setLoginModalEmail('');
-          if (isAdminUser) {
+          if (isAdminUser || isAdmin) {
+            if (!window.location.pathname.startsWith('/admin')) {
+              window.history.pushState({ type: 'admin', tab: 'dashboard' }, '', '/admin/dashboard');
+            }
             setShowAdminDashboard(true);
           }
         }}
@@ -1084,10 +1111,16 @@ function AppContent() {
         onClose={() => setShowProfileModal(false)}
         onOpenPrompt={handleOpenPromptModal}
         onOpenAdminDashboard={() => {
-          if (!window.location.pathname.startsWith('/admin')) {
-            window.history.pushState({ type: 'admin', tab: 'dashboard' }, '', '/admin/dashboard');
+          if (authLoading) return;
+          if (isAdmin) {
+            if (!window.location.pathname.startsWith('/admin')) {
+              window.history.pushState({ type: 'admin', tab: 'dashboard' }, '', '/admin/dashboard');
+            }
+            setShowAdminDashboard(true);
+          } else {
+            setShowLoginModal(true);
+            showToast('Admin Authentication Required', 'Please log in with an Admin account.', 'error');
           }
-          setShowAdminDashboard(true);
         }}
       />
 

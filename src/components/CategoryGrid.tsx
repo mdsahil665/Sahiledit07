@@ -3,6 +3,7 @@ import { Category, PromptPost } from '../types';
 import { CategoryIcon } from './CategoryIcon';
 import { ArrowRight, Layers } from 'lucide-react';
 import { motion } from 'motion/react';
+import { isPostStrictlyInCategory, normalizeCategoryKey } from '../utils/categoryUtils';
 
 interface CategoryGridProps {
   categories: Category[];
@@ -34,7 +35,7 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
           {selectedCategory && (
             <button
               onClick={() => onSelectCategory(null)}
-              className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+              className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
             >
               Clear Filter ✕
             </button>
@@ -44,8 +45,8 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
         {/* Categories Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
           {categories.map((cat) => {
-            const count = posts.filter((p) => p.categoryId === cat.id && p.status === 'published').length;
-            const isSelected = selectedCategory === cat.id;
+            const count = posts.filter((p) => isPostStrictlyInCategory(p, cat.id) && p.status === 'published').length;
+            const isSelected = selectedCategory !== null && normalizeCategoryKey(selectedCategory) === normalizeCategoryKey(cat.id);
 
             return (
               <motion.button
@@ -53,7 +54,7 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => onSelectCategory(isSelected ? null : cat.id)}
-                className={`flex flex-col justify-between p-4 rounded-2xl border text-left transition-all duration-200 ${
+                className={`flex flex-col justify-between p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer ${
                   isSelected
                     ? 'bg-blue-600 text-white border-blue-500 shadow-xl shadow-blue-500/25 ring-2 ring-blue-400'
                     : 'bg-white dark:bg-zinc-900/90 text-zinc-900 dark:text-zinc-100 border-zinc-200/80 dark:border-zinc-800/80 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/5'

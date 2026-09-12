@@ -40,6 +40,12 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import {
+  CORE_CATEGORIES,
+  normalizeCategoryKey,
+  getCategoryDisplayName,
+  getPostCategoryKey,
+} from '../utils/categoryUtils';
 
 export function getTimestampMillis(dateVal: any): number {
   if (!dateVal) return 0;
@@ -316,10 +322,39 @@ class PromptStore {
   private initLocalStorageCache() {
     try {
       const storedPosts = localStorage.getItem(STORAGE_KEYS.POSTS);
-      this.postsCache = storedPosts ? sortPostsByCreatedAtDesc(JSON.parse(storedPosts)) : sortPostsByCreatedAtDesc(INITIAL_PROMPTS);
+      if (storedPosts) {
+        const parsed = JSON.parse(storedPosts);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          this.postsCache = sortPostsByCreatedAtDesc(
+            parsed.map((p: any) => {
+              const rawCat = p.categoryId;
+              if (!rawCat || rawCat.startsWith('cat-1786') || rawCat.startsWith('cat-1788')) {
+                const canonical = getPostCategoryKey(p);
+                return {
+                  ...p,
+                  categoryId: canonical,
+                  categoryName: p.categoryName || getCategoryDisplayName(canonical),
+                };
+              }
+              return p;
+            })
+          );
+        } else {
+          this.postsCache = sortPostsByCreatedAtDesc(INITIAL_PROMPTS);
+        }
+      } else {
+        this.postsCache = sortPostsByCreatedAtDesc(INITIAL_PROMPTS);
+      }
 
       const storedCats = localStorage.getItem(STORAGE_KEYS.CATEGORIES);
-      this.categoriesCache = storedCats ? JSON.parse(storedCats) : INITIAL_CATEGORIES;
+      const parsedCats = storedCats ? JSON.parse(storedCats) : INITIAL_CATEGORIES;
+      const mergedCats: Category[] = Array.isArray(parsedCats) ? [...parsedCats] : [...INITIAL_CATEGORIES];
+      for (const core of CORE_CATEGORIES) {
+        if (!mergedCats.some((c) => c.id === core.id || c.slug === core.slug)) {
+          mergedCats.unshift(core);
+        }
+      }
+      this.categoriesCache = mergedCats;
 
       const storedPages = localStorage.getItem(STORAGE_KEYS.PAGES);
       this.pagesCache = storedPages ? JSON.parse(storedPages) : INITIAL_PAGES;
@@ -430,8 +465,18 @@ class PromptStore {
             const docImages = getPostGallery(data);
             const docCover = docImages[0] || data.imageUrl || (data as any).image || '';
 
+            const rawCatId = (data as any).categoryId;
+            const canonicalCat = getPostCategoryKey({ ...data, id: docId } as PromptPost);
+            const resolvedCatId =
+              rawCatId && !rawCatId.startsWith('cat-1786') && !rawCatId.startsWith('cat-1788')
+                ? normalizeCategoryKey(rawCatId) || rawCatId
+                : canonicalCat;
+            const resolvedCatName = (data as any).categoryName || getCategoryDisplayName(resolvedCatId);
+
             postsList.push({
               ...data,
+              categoryId: resolvedCatId,
+              categoryName: resolvedCatName,
               imageUrl: docCover,
               images: docImages,
               gallery: docImages,
@@ -777,8 +822,13 @@ class PromptStore {
     const finalImages: string[] = getPostGallery(postData);
     const coverUrl = finalImages[0] || postData.imageUrl || '';
 
+    const chosenCat = postData.categoryId ? normalizeCategoryKey(postData.categoryId) || postData.categoryId : 'man';
+    const catName = postData.categoryName || getCategoryDisplayName(chosenCat);
+
     const newPost: PromptPost = {
       ...postData,
+      categoryId: chosenCat,
+      categoryName: catName,
       imageUrl: coverUrl,
       images: finalImages,
       gallery: finalImages,
@@ -887,6 +937,12 @@ class PromptStore {
     (cleanUpdates as any).gallery = finalImages;
     cleanUpdates.imageUrl = coverUrl;
 
+    if (cleanUpdates.categoryId !== undefined) {
+      const chosenCat = normalizeCategoryKey(cleanUpdates.categoryId) || cleanUpdates.categoryId;
+      cleanUpdates.categoryId = chosenCat;
+      cleanUpdates.categoryName = cleanUpdates.categoryName || getCategoryDisplayName(chosenCat);
+    }
+
     const updatedPost: PromptPost = {
       ...existingPost,
       ...cleanUpdates,
@@ -917,7 +973,12 @@ class PromptStore {
       if (cleanUpdates.title !== undefined) updateDataForFirestore.title = cleanUpdates.title;
       if (cleanUpdates.shortDescription !== undefined) updateDataForFirestore.shortDescription = cleanUpdates.shortDescription;
       if (cleanUpdates.fullPrompt !== undefined) updateDataForFirestore.fullPrompt = cleanUpdates.fullPrompt;
-      if (cleanUpdates.categoryId !== undefined) updateDataForFirestore.categoryId = cleanUpdates.categoryId;
+      if (cleanUpdates.categoryId !== undefined) {
+        updateDataForFirestore.categoryId = cleanUpdates.categoryId;
+        if (cleanUpdates.categoryName !== undefined) {
+          updateDataForFirestore.categoryName = cleanUpdates.categoryName;
+        }
+      }
       if (cleanUpdates.tags !== undefined) updateDataForFirestore.tags = cleanUpdates.tags;
       if (cleanUpdates.imageUrl !== undefined || cleanUpdates.images !== undefined || (cleanUpdates as any).gallery !== undefined) {
         let finalImg = coverUrl;
@@ -1202,24 +1263,27 @@ class PromptStore {
 
   // --- CATEGORIES ---
   public getCategories(): Category[] {
-    const hasVideo = this.categoriesCache.some(
+    const list = [...this.categoriesCache];
+    for (const core of CORE_CATEGORIES) {
+      if (!list.some((c) => c.id === core.id || c.slug === core.slug)) {
+        list.unshift(core);
+      }
+    }
+    const hasVideo = list.some(
       (c) => c.id === 'video' || c.id === 'video-prompt' || c.slug === 'video' || c.slug === 'video-prompt' || c.name.toLowerCase() === 'video'
     );
     if (!hasVideo) {
-      return [
-        ...this.categoriesCache,
-        {
-          id: 'video',
-          name: 'Video',
-          slug: 'video',
-          icon: 'Video',
-          color: 'rose',
-          bgLight: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
-          description: 'Cinematic AI video generation prompts for Runway Gen-3, Luma Dream Machine, Sora, Kling & Pika.'
-        }
-      ];
+      list.push({
+        id: 'video',
+        name: 'Video',
+        slug: 'video',
+        icon: 'Video',
+        color: 'rose',
+        bgLight: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+        description: 'Cinematic AI video generation prompts for Runway Gen-3, Luma Dream Machine, Sora, Kling & Pika.'
+      });
     }
-    return this.categoriesCache;
+    return list;
   }
 
   public async addCategory(catData: Omit<Category, 'id' | 'slug'>): Promise<Category> {

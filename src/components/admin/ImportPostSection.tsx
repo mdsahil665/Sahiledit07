@@ -21,6 +21,8 @@ import { motion } from 'motion/react';
 import { useToast } from '../Toast';
 import { promptStore } from '../../services/promptStore';
 import { downloadImage } from '../../lib/imageUtils';
+import { classifyPostContent } from '../../services/categoryClassifier';
+import { getCategoryDisplayName } from '../../utils/categoryUtils';
 
 interface ImportPostSectionProps {
   isOpen: boolean;
@@ -47,6 +49,7 @@ export const ImportPostSection: React.FC<ImportPostSectionProps> = ({
   const [shortDescription, setShortDescription] = useState('');
   const [fullPrompt, setFullPrompt] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [categoryName, setCategoryName] = useState('');
   const [tagsInput, setTagsInput] = useState('');
   const [sourceUrl, setSourceUrl] = useState('');
   const [authorName, setAuthorName] = useState('');
@@ -173,7 +176,17 @@ export const ImportPostSection: React.FC<ImportPostSectionProps> = ({
       setImagePreviewUrl(finalImg || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80');
       setSourceUrl(trimmedUrl);
       setAuthorName(metaSite || 'Web Source');
-      setCategoryId(categories[0]?.id || 'chatgpt');
+
+      const classified = classifyPostContent({
+        title: metaTitle || '',
+        shortDescription: metaDesc || '',
+        fullPrompt: extractedPrompt || '',
+      });
+      const matchCat = categories.find((c) => c.id === classified.categoryId || c.slug === classified.categoryId);
+      const chosenCatId = matchCat ? matchCat.id : (categories[0]?.id || 'man');
+      setCategoryId(chosenCatId);
+      setCategoryName(matchCat?.name || getCategoryDisplayName(chosenCatId));
+
       setTagsInput('Imported, AI Prompt');
 
       setStep('preview');
@@ -265,12 +278,16 @@ export const ImportPostSection: React.FC<ImportPostSectionProps> = ({
             .filter(Boolean)
         : [categoryName, 'Imported'];
 
+      const resolvedCatId = categoryId || categories[0]?.id || 'man';
+      const resolvedCatObj = categories.find((c) => c.id === resolvedCatId || c.slug === resolvedCatId);
+      const resolvedCatName = categoryName || resolvedCatObj?.name || getCategoryDisplayName(resolvedCatId);
+
       const newPostData: Omit<PromptPost, 'id' | 'createdAt' | 'updatedAt' | 'views' | 'copies'> = {
         title: title.trim(),
         shortDescription: shortDescription.trim() || title.trim(),
         fullPrompt: fullPrompt.trim(),
-        categoryId: categoryId || categories[0]?.id || 'chatgpt',
-        categoryName: categoryName,
+        categoryId: resolvedCatId,
+        categoryName: resolvedCatName,
         tags: parsedTags,
         imageUrl: finalImage,
         featured: false,

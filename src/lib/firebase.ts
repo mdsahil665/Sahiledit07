@@ -100,7 +100,8 @@ export async function syncUserToFirestore(user: User): Promise<boolean> {
       console.warn('Firestore read user doc notice:', readErr);
     }
 
-    await setDoc(
+    // Asynchronously persist profile state & login timestamp without blocking session restoration
+    setDoc(
       userRef,
       {
         uid: user.uid,
@@ -112,7 +113,9 @@ export async function syncUserToFirestore(user: User): Promise<boolean> {
         updatedAt: now,
       },
       { merge: true }
-    );
+    ).catch((writeErr) => {
+      console.warn('Firestore user sync background write notice:', writeErr);
+    });
 
     return isRoleAdmin;
   } catch (err: any) {

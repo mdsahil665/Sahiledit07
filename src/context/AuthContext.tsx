@@ -46,10 +46,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const checkAdminStatus = (user: User | null): boolean => {
-    if (!user) return promptStore.isAdminLoggedIn();
+    if (!user) return false;
     const userEmail = user.email?.toLowerCase() || '';
-    const adminCheck = userEmail === ADMIN_EMAIL.toLowerCase() || promptStore.isAdminLoggedIn();
-    return adminCheck;
+    return userEmail === ADMIN_EMAIL.toLowerCase();
   };
 
   // Real-time listener for current user's profile document to sync isPremium and role
@@ -66,6 +65,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (snap.exists()) {
           const data = snap.data();
           setIsPremium(Boolean(data?.isPremium));
+          const isRoleAdmin = data?.role === 'admin';
+          const isMasterAdmin = currentUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+          if (isRoleAdmin || isMasterAdmin) {
+            setIsAdmin(true);
+            promptStore.setAdminLoggedIn(true);
+          }
         } else {
           setIsPremium(false);
         }
@@ -76,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     return () => unsub();
-  }, [currentUser?.uid]);
+  }, [currentUser?.uid, currentUser?.email]);
 
   useEffect(() => {
     // Check for pending redirect sign-in results
@@ -95,15 +100,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        const isUserAdmin = await syncUserToFirestore(user);
-        const adminState = checkAdminStatus(user) || isUserAdmin;
-        setIsAdmin(adminState);
-        if (adminState) {
+        // Fast synchronous check for recognized master admin email
+        const userEmail = user.email?.toLowerCase() || '';
+        const isMasterAdmin = userEmail === ADMIN_EMAIL.toLowerCase();
+        if (isMasterAdmin) {
+          setIsAdmin(true);
           promptStore.setAdminLoggedIn(true);
         }
+
+        // Verify existing admin role in Firestore profile
+        try {
+          const isRoleAdmin = await syncUserToFirestore(user);
+          const finalAdminState = isMasterAdmin || isRoleAdmin;
+          setIsAdmin(finalAdminState);
+          if (finalAdminState) {
+            promptStore.setAdminLoggedIn(true);
+          } else {
+            promptStore.setAdminLoggedIn(false);
+          }
+        } catch (syncErr) {
+          console.warn('Firestore user profile sync notice during auth restoration:', syncErr);
+        }
       } else {
-        const isPasscodeAdmin = promptStore.isAdminLoggedIn();
-        setIsAdmin(isPasscodeAdmin);
+        setCurrentUser(null);
+        setIsAdmin(false);
+        promptStore.setAdminLoggedIn(false);
         setIsPremium(false);
       }
       setLoading(false);

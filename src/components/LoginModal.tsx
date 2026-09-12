@@ -42,13 +42,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
   }, [isOpen, initialMode, initialEmail]);
 
-  const { currentUser, loginWithEmail, registerWithEmail, resetPassword, loginWithGoogle } = useAuth();
+  const { currentUser, isAdmin, loginWithEmail, registerWithEmail, resetPassword, loginWithGoogle } = useAuth();
   const { showToast } = useToast();
   const { logoUrl } = useLogo();
 
   useEffect(() => {
     if (currentUser && isOpen) {
-      const isAdminUser = currentUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+      const isAdminUser = isAdmin || currentUser.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase();
       if (onLoginSuccess) {
         onLoginSuccess(isAdminUser);
       }
@@ -57,7 +57,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       }
       onClose();
     }
-  }, [currentUser, isOpen, onLoginSuccess, onSuccess, onClose]);
+  }, [currentUser, isAdmin, isOpen, onLoginSuccess, onSuccess, onClose]);
 
   // Lock body scroll when modal is open
   useEffect(() => {

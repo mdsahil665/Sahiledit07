@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { PromptPost, Category, PostStatus, BadgeMode, BadgeType } from '../../types';
 import { ALL_BADGE_TYPES } from '../../services/badgeService';
 import {
@@ -31,6 +31,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../Toast';
 import { promptStore, getPostGallery } from '../../services/promptStore';
 import { compressImageFile, compressDataUrl, getCloudinaryOriginalUrl, getOptimizedDisplayUrl } from '../../lib/imageUtils';
+import { classifyPostContent } from '../../services/categoryClassifier';
+import { getCategoryDisplayName, normalizeCategoryKey } from '../../utils/categoryUtils';
 
 interface PostFormModalProps {
   isOpen: boolean;
@@ -77,6 +79,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
   const [timerEnabled, setTimerEnabled] = useState(true);
   const [timerSeconds, setTimerSeconds] = useState<number>(5);
   const [isUploading, setIsUploading] = useState(false);
+  const [isManualCategory, setIsManualCategory] = useState(false);
 
   const { showToast } = useToast();
   const featureControls = promptStore.getFeatureControls();
@@ -84,6 +87,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
 
   useEffect(() => {
     if (post) {
+      setIsManualCategory(true);
       // Edit mode: load all existing images safely
       const existingImgs = getPostGallery(post);
       setGalleryImages(existingImgs);
@@ -130,6 +134,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
         setTimerSeconds(5);
       }
     } else {
+      setIsManualCategory(false);
       // New post: Gallery MUST start completely clean with 0 images
       setGalleryImages([]);
       setImageUrl('');
@@ -138,7 +143,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       setPhotoPrompt('');
       setVideoPrompt('');
       setActivePromptTab('photo');
-      setCategoryId(categories[0]?.id || 'chatgpt');
+      setCategoryId(categories.find(c => c.id === 'man')?.id || categories[0]?.id || 'man');
       setTagsInput('');
       setSeoTitle('');
       setMetaDescription('');
@@ -153,6 +158,33 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
     }
     setNewUrlInput('');
   }, [post, categories, isOpen]);
+
+  // Intelligent content-based category recommendation
+  const contentCategory = useMemo(() => {
+    return classifyPostContent({
+      title,
+      shortDescription,
+      tags: tagsInput,
+      photoPrompt,
+      videoPrompt,
+      postType: !photoPrompt.trim() && videoPrompt.trim() ? 'video_prompt' : 'photo_prompt',
+      existingCategoryId: categoryId,
+    });
+  }, [title, shortDescription, tagsInput, photoPrompt, videoPrompt, categoryId]);
+
+  // If the admin hasn't manually chosen a category on a new post, automatically reflect high-confidence suggestion
+  useEffect(() => {
+    if (!post && !isManualCategory && contentCategory.confidence !== 'low') {
+      const match = categories.find(
+        (c) =>
+          normalizeCategoryKey(c.id) === contentCategory.categoryId ||
+          normalizeCategoryKey(c.slug) === contentCategory.categoryId
+      );
+      if (match && match.id !== categoryId) {
+        setCategoryId(match.id);
+      }
+    }
+  }, [post, isManualCategory, contentCategory, categories, categoryId]);
 
   if (!isOpen) return null;
 
@@ -303,6 +335,10 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
     const resolvedPostType: 'photo_prompt' | 'video_prompt' =
       !photoTrimmed && videoTrimmed ? 'video_prompt' : 'photo_prompt';
 
+    const resolvedCatId = categoryId || categories[0]?.id || 'man';
+    const resolvedCatObj = categories.find((c) => c.id === resolvedCatId || c.slug === resolvedCatId);
+    const resolvedCatName = resolvedCatObj?.name || getCategoryDisplayName(resolvedCatId);
+
     onSave(
       {
         title: title.trim(),
@@ -311,7 +347,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
         photoPrompt: photoTrimmed || undefined,
         videoPrompt: videoTrimmed || undefined,
         postType: resolvedPostType,
-        categoryId: categoryId || categories[0]?.id || 'chatgpt',
+        categoryId: resolvedCatId,
+        categoryName: resolvedCatName,
         tags: parsedTags,
         imageUrl: coverUrl,
         images: processedGallery,
@@ -441,10 +478,36 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                     </div>
 
                     <div className="space-y-1.5">
-                      <label className="text-xs font-bold text-zinc-300">Category *</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-zinc-300">Category *</label>
+                        {contentCategory.categoryId !== normalizeCategoryKey(categoryId) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const match = categories.find(
+                                (c) =>
+                                  normalizeCategoryKey(c.id) === contentCategory.categoryId ||
+                                  normalizeCategoryKey(c.slug) === contentCategory.categoryId
+                              );
+                              if (match) {
+                                setCategoryId(match.id);
+                              } else {
+                                setCategoryId(contentCategory.categoryId);
+                              }
+                              setIsManualCategory(true);
+                            }}
+                            className="text-[11px] font-semibold text-blue-400 hover:text-blue-300 underline cursor-pointer"
+                          >
+                            Suggest: {contentCategory.categoryName} (Apply)
+                          </button>
+                        )}
+                      </div>
                       <select
                         value={categoryId}
-                        onChange={(e) => setCategoryId(e.target.value)}
+                        onChange={(e) => {
+                          setCategoryId(e.target.value);
+                          setIsManualCategory(true);
+                        }}
                         className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs font-semibold text-white focus:outline-none focus:border-blue-500"
                       >
                         {categories.map((c) => (
@@ -453,6 +516,11 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                           </option>
                         ))}
                       </select>
+                      {contentCategory.categoryId === normalizeCategoryKey(categoryId) && (
+                        <p className="text-[11px] text-emerald-400/90 font-medium">
+                          ✓ Category matched by content analysis ({contentCategory.categoryName})
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-1.5">
