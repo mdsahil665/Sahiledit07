@@ -753,6 +753,10 @@ class PromptStore {
     return sortPostsByCreatedAtDesc(this.postsCache);
   }
 
+  public getAllPosts(): PromptPost[] {
+    return this.getPosts();
+  }
+
   public getPostById(id: string): PromptPost | undefined {
     return this.postsCache.find((p) => p.id === id);
   }

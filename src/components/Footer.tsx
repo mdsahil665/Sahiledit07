@@ -304,10 +304,20 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage, onOpenPre
               </div>
               <div>
                 <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                  {websiteSettings.websiteName || 'Sahil Edits'}
+                  <a
+                    href="/"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      scrollToTop();
+                    }}
+                    className="hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                    title="Sahil Edit Vercel – Sahil Edits AI Prompt Library"
+                  >
+                    {websiteSettings.websiteName ? `${websiteSettings.websiteName} Vercel` : 'Sahil Edit Vercel'}
+                  </a>
                 </h2>
                 <p className="text-[11px] sm:text-xs font-bold tracking-widest text-purple-600 dark:text-purple-400 uppercase">
-                  {websiteSettings.tagline || 'Premium AI Prompt Library'}
+                  {websiteSettings.tagline ? `Official ${websiteSettings.tagline}` : 'Official Sahil Edits AI Prompt Library'}
                 </p>
               </div>
             </div>
@@ -448,9 +458,33 @@ export const Footer: React.FC<FooterProps> = React.memo(({ onOpenPage, onOpenPre
 
         {/* 3. BOTTOM BAR (Divider, Copyright, Policy Links) */}
         <div className="pt-6 sm:pt-8 border-t border-slate-200/80 dark:border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400 font-medium">
-          {/* Copyright */}
+          {/* Copyright & Brand Attribution */}
           <div className="text-center sm:text-left">
-            {footerText}
+            <span>© 2026 </span>
+            <a
+              href="/"
+              onClick={(e) => {
+                e.preventDefault();
+                scrollToTop();
+              }}
+              className="font-semibold text-slate-700 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+              title="Sahil Edit Vercel"
+            >
+              Sahil Edit Vercel
+            </a>
+            <span> – Official </span>
+            <a
+              href="/"
+              onClick={(e) => {
+                e.preventDefault();
+                scrollToTop();
+              }}
+              className="font-semibold text-slate-700 dark:text-slate-300 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+              title="Sahil Edits AI Prompt Library"
+            >
+              Sahil Edits AI Prompt Library
+            </a>
+            <span>. All rights reserved.</span>
           </div>
 
           {/* Policy Links */}

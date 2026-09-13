@@ -15,7 +15,7 @@ try {
 
 function getFallbackHtml(post: any, rawSlugOrId: string) {
   const postTitle = (post?.seoTitle || post?.title || 'AI Prompt').trim();
-  const safeTitle = postTitle ? `${escapeHtml(postTitle)} - Sahil Edits` : 'Sahil Edits – Premium AI Prompt Library';
+  const safeTitle = postTitle ? `${escapeHtml(postTitle)} - Sahil Edits` : 'Sahil Edit Vercel – Sahil Edits AI Prompt Library';
   const postDesc = post?.shortDescription || post?.metaDescription || post?.videoPrompt || post?.fullPrompt || 'Discover and copy trending AI prompts with 1-click on Sahil Edits.';
   const safeDesc = escapeHtml(cleanDescription(postDesc, 200));
   const safeImg = post ? extractMainCoverImage(post) : '';
@@ -51,7 +51,7 @@ function getFallbackHtml(post: any, rawSlugOrId: string) {
   <meta property="og:url" content="${canonical}" id="seo-og-url" />
   <meta property="og:title" content="${safeTitle}" id="seo-og-title" />
   <meta property="og:description" content="${safeDesc}" id="seo-og-description" />${imageMetaTags}
-  <meta property="og:site_name" content="Sahil Edits" />
+  <meta property="og:site_name" content="Sahil Edit Vercel" />
   
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" id="seo-twitter-card" />

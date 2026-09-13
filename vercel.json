@@ -15,6 +15,14 @@
       "destination": "/api/google-verify"
     },
     {
+      "source": "/robots.txt",
+      "destination": "/api/robots"
+    },
+    {
+      "source": "/api/robots",
+      "destination": "/api/robots"
+    },
+    {
       "source": "/ads.txt",
       "destination": "/api/ads"
     },
@@ -41,6 +49,10 @@
     {
       "source": "/api/payment/test-connection",
       "destination": "/api/payment/test-connection"
+    },
+    {
+      "source": "/api/generate-post-seo",
+      "destination": "/api/generate-post-seo"
     },
     {
       "source": "/api/health",

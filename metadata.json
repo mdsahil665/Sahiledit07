@@ -1,6 +1,6 @@
 {
   "name": "Sahil Edits",
-  "description": "Sahil Edits – Premium AI Prompt Library & Sharing Platform",
+  "description": "Sahil Edit Vercel – Official Sahil Edits AI Prompt Library featuring creative AI image prompts, cinematic prompts, photography prompts and more.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

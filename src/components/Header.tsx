@@ -104,13 +104,19 @@ export const Header: React.FC<HeaderProps> = ({
           }`}
         >
           {/* 1. Brand / Logo Left */}
-          <div
-            className="flex items-center gap-2 sm:gap-3 cursor-pointer group shrink-0 select-none"
-            onClick={onNavigateHome}
+          <a
+            href="/"
+            className="flex items-center gap-2 sm:gap-3 cursor-pointer group shrink-0 select-none text-current no-underline"
+            onClick={(e) => {
+              e.preventDefault();
+              onNavigateHome();
+            }}
+            title="Sahil Edit Vercel – Sahil Edits AI Prompt Library"
+            aria-label="Sahil Edit Vercel – Sahil Edits AI Prompt Library"
           >
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-all duration-300 overflow-hidden border border-white/20 shrink-0">
               {logoUrl ? (
-                <img src={logoUrl} alt="Website Logo" className="w-full h-full object-cover rounded-full" />
+                <img src={logoUrl} alt="Sahil Edit Vercel Logo" className="w-full h-full object-cover rounded-full" />
               ) : (
                 <span className="font-black text-lg text-white">P</span>
               )}
@@ -123,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({
                 AI Prompt Library
               </span>
             </div>
-          </div>
+          </a>
 
           {/* 2. Desktop Quick Categories Links */}
           <nav className="hidden xl:flex items-center gap-1.5 mx-4">

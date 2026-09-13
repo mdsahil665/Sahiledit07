@@ -161,7 +161,7 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
           {coverImageUrl ? (
             <img
               src={getOptimizedDisplayUrl(coverImageUrl, { width: 800, quality: '85' })}
-              alt={post.title}
+              alt={post.altText || post.title}
               loading="lazy"
               decoding="async"
               style={{ opacity: (cardConfig.imageOpacity ?? 100) / 100 }}
@@ -187,7 +187,7 @@ export const PromptCard: React.FC<PromptCardProps> = React.memo(({
           ) : (
             <img
               src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80"
-              alt={post.title}
+              alt={post.altText || post.title}
               className="w-full h-full object-cover"
             />
           )}

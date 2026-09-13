@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { handleCreateOrder, handleVerifyPayment, handleTestConnection } from "./server/paymentServer";
+import { handleGeneratePostSeo } from "./server/aiPostCreator";
 import { fetchPostByIdServer, extractMainCoverImage, fetchAllPostsServer } from "./server/postService";
 import { injectPostMetadataIntoHtml, getBaseUrl } from "./server/htmlInjector";
 import { getPromptSlug } from "./src/utils/promptUrl";
@@ -10,7 +11,8 @@ import { getPromptSlug } from "./src/utils/promptUrl";
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
 // --- API ROUTES ---
 
@@ -69,6 +71,14 @@ app.post("/api/payment/verify-payment", async (req, res) => {
 app.post("/api/payment/test-connection", async (req, res) => {
   res.setHeader("Content-Type", "application/json");
   const result = await handleTestConnection(req.body);
+  return res.status(result.statusCode).json(result.data);
+});
+
+// AI Smart Post Creator - SEO & Vision Analysis API
+app.post("/api/generate-post-seo", async (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  const authHeader = req.headers?.authorization;
+  const result = await handleGeneratePostSeo(req.body, authHeader);
   return res.status(result.statusCode).json(result.data);
 });
 
@@ -140,24 +150,69 @@ async function startServer() {
     }).send("google-site-verification: google0fdb75f42362435f.html\n");
   });
 
+  // Robots.txt Endpoint
+  app.get("/robots.txt", (_req, res) => {
+    res.status(200).set({
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "public, max-age=3600, s-maxage=86400",
+    }).send(`User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Mediapartners-Google
+Allow: /
+
+User-agent: Google-Display-Ads-Bot
+Allow: /
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/admin
+Disallow: /reset-password
+
+Sitemap: https://sahiledit.vercel.app/sitemap.xml
+`);
+  });
+
   // Dynamic XML Sitemap Endpoint
   app.get("/sitemap.xml", async (_req, res) => {
     try {
       const posts = await fetchAllPostsServer();
       const baseUrl = "https://sahiledit.vercel.app";
 
+      // Determine latest update timestamp across all posts
+      let latestTimestamp = new Date().toISOString().split("T")[0];
+      if (posts && posts.length > 0) {
+        const dates = posts
+          .map((p) => p.updatedAt || p.createdAt)
+          .filter(Boolean)
+          .map((d) => new Date(d).getTime())
+          .filter((t) => !isNaN(t));
+        if (dates.length > 0) {
+          latestTimestamp = new Date(Math.max(...dates)).toISOString().split("T")[0];
+        }
+      }
+
       const staticCategories = [
-        { slug: "chatgpt", priority: "0.8", changefreq: "daily" },
-        { slug: "gemini", priority: "0.8", changefreq: "daily" },
+        { slug: "man", priority: "0.9", changefreq: "daily" },
+        { slug: "woman", priority: "0.9", changefreq: "daily" },
+        { slug: "couple", priority: "0.9", changefreq: "daily" },
+        { slug: "family", priority: "0.8", changefreq: "weekly" },
+        { slug: "birthday", priority: "0.8", changefreq: "weekly" },
         { slug: "image-prompt", priority: "0.9", changefreq: "daily" },
         { slug: "video-prompt", priority: "0.9", changefreq: "daily" },
+        { slug: "chatgpt", priority: "0.8", changefreq: "daily" },
+        { slug: "gemini", priority: "0.8", changefreq: "daily" },
       ];
 
       const staticPages = [
-        "privacy-policy",
-        "terms-and-conditions",
         "about-us",
         "contact-us",
+        "privacy-policy",
+        "terms-and-conditions",
         "disclaimer",
         "dmca",
         "refund-policy",
@@ -168,22 +223,22 @@ async function startServer() {
         str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 
       const formatDate = (dateStr?: string) => {
-        if (!dateStr) return "2026-09-10";
+        if (!dateStr) return new Date().toISOString().split("T")[0];
         try {
           const d = new Date(dateStr);
-          return isNaN(d.getTime()) ? "2026-09-10" : d.toISOString().split("T")[0];
+          return isNaN(d.getTime()) ? new Date().toISOString().split("T")[0] : d.toISOString().split("T")[0];
         } catch {
-          return "2026-09-10";
+          return new Date().toISOString().split("T")[0];
         }
       };
 
-      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n  <!-- Homepage -->\n  <url>\n    <loc>${baseUrl}/</loc>\n    <lastmod>${formatDate(posts[0]?.updatedAt || posts[0]?.createdAt)}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n\n  <!-- Categories -->\n`;
+      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n  <!-- Sahil Edits Official Homepage -->\n  <url>\n    <loc>${baseUrl}/</loc>\n    <lastmod>${latestTimestamp}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n\n  <!-- Categories -->\n`;
 
       for (const cat of staticCategories) {
-        xml += `  <url>\n    <loc>${baseUrl}/?category=${encodeURIComponent(cat.slug)}</loc>\n    <lastmod>2026-09-10</lastmod>\n    <changefreq>${cat.changefreq}</changefreq>\n    <priority>${cat.priority}</priority>\n  </url>\n`;
+        xml += `  <url>\n    <loc>${baseUrl}/?category=${encodeURIComponent(cat.slug)}</loc>\n    <lastmod>${latestTimestamp}</lastmod>\n    <changefreq>${cat.changefreq}</changefreq>\n    <priority>${cat.priority}</priority>\n  </url>\n`;
       }
 
-      xml += `\n  <!-- Live Public Posts -->\n`;
+      xml += `\n  <!-- Live Public Prompts -->\n`;
 
       for (const post of posts) {
         const slug = getPromptSlug(post as any) || post.slug || post.id;
@@ -201,7 +256,7 @@ async function startServer() {
       xml += `\n  <!-- Policy & Legal Pages -->\n`;
 
       for (const page of staticPages) {
-        xml += `  <url>\n    <loc>${baseUrl}/?page=${encodeURIComponent(page)}</loc>\n    <lastmod>2026-09-10</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.5</priority>\n  </url>\n`;
+        xml += `  <url>\n    <loc>${baseUrl}/?page=${encodeURIComponent(page)}</loc>\n    <lastmod>${latestTimestamp}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.5</priority>\n  </url>\n`;
       }
 
       xml += `</urlset>\n`;

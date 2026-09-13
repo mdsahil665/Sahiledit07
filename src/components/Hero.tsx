@@ -44,36 +44,38 @@ export const Hero: React.FC<HeroProps> = ({
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-72 bg-gradient-to-r from-blue-400/20 via-indigo-400/15 to-purple-400/20 blur-3xl pointer-events-none rounded-full" />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col items-center">
-        {/* Main Hero Header Title */}
+        {/* Main Hero Header Title - Exactly ONE Primary H1 for Homepage */}
         <motion.h1
+          id="hero-main-title"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="text-4xl sm:text-6xl md:text-7xl font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-[1.1] select-none text-center"
+          className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-[#0F172A] dark:text-white tracking-tight leading-[1.15] select-none text-center"
         >
-          AI Photo Editing
-          <span className="block mt-1 sm:mt-2">Prompts</span>
+          <span>Sahil Edit Vercel</span>
+          <span className="block text-xl sm:text-3xl md:text-4xl lg:text-5xl mt-1.5 sm:mt-2.5 font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 dark:from-blue-400 dark:via-indigo-400 dark:to-purple-400 bg-clip-text text-transparent">
+            – Sahil Edits AI Prompt Library
+          </span>
         </motion.h1>
 
-        {/* Gradient Second Heading */}
+        {/* Supporting Subheading */}
         <motion.h2
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.1 }}
-          className="text-3xl sm:text-5xl md:text-6xl font-extrabold bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent tracking-tight mt-3 sm:mt-4 select-none text-center"
+          className="text-base sm:text-xl md:text-2xl font-semibold text-slate-700 dark:text-slate-200 tracking-tight mt-3 select-none text-center max-w-2xl"
         >
-          Gemini &amp; ChatGPT
+          Creative AI Image, Video &amp; Photography Prompts
         </motion.h2>
 
-        {/* Subtitle / Description Text */}
+        {/* Subtitle / Description Text with Visible Brand Content */}
         <motion.p
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.2 }}
-          className="mt-4 sm:mt-6 text-base sm:text-xl text-slate-600 dark:text-slate-300 max-w-lg mx-auto font-medium leading-snug sm:leading-relaxed text-center px-2"
+          className="mt-3 sm:mt-4 text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-300 max-w-3xl mx-auto font-normal leading-relaxed text-center px-2"
         >
-          Copy, paste, and generate stunning Images in
-          <span className="block sm:inline sm:ml-1">seconds.</span>
+          Welcome to <strong className="font-semibold text-slate-900 dark:text-white">Sahil Edit Vercel</strong>, the official <span className="font-semibold text-slate-900 dark:text-white">Sahil Edits AI Prompt Library</span>. Explore curated, high-quality AI prompt templates for Gemini, ChatGPT, Midjourney &amp; Flux with free 1-click prompt copying to generate stunning visuals in seconds.
         </motion.p>
 
         {/* Search Bar with Large Circular Blue Button on Right */}

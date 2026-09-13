@@ -18,6 +18,8 @@ export interface DecodedPost {
   categoryId?: string;
   categoryName?: string;
   tags?: string[];
+  keywords?: string[];
+  altText?: string;
   imageUrl: string;
   images?: string[];
   gallery?: (string | { url: string; isCover?: boolean })[];

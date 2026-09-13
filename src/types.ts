@@ -93,8 +93,19 @@ export interface PromptPost {
   updatedAt: string;
   seoTitle?: string;
   metaDescription?: string;
+  keywords?: string[];
+  altText?: string;
   pinned?: boolean;
   timerOverride?: PostTimerOverride;
+}
+
+export interface AiGeneratedSeoData {
+  title: string;
+  description: string;
+  tags: string[];
+  keywords: string[];
+  category: string;
+  altText: string;
 }
 
 export interface AdminStats {

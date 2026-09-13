@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { PromptPost, Category, PostStatus, BadgeMode, BadgeType } from '../../types';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { PromptPost, Category, PostStatus, BadgeMode, BadgeType, AiGeneratedSeoData } from '../../types';
 import { ALL_BADGE_TYPES } from '../../services/badgeService';
 import {
   X,
@@ -26,13 +26,21 @@ import {
   Zap,
   Film,
   Video,
+  Wand2,
+  RefreshCw,
+  AlertTriangle,
+  Check,
+  Globe,
+  HelpCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useToast } from '../Toast';
+import { useAuth } from '../../context/AuthContext';
 import { promptStore, getPostGallery } from '../../services/promptStore';
 import { compressImageFile, compressDataUrl, getCloudinaryOriginalUrl, getOptimizedDisplayUrl } from '../../lib/imageUtils';
 import { classifyPostContent } from '../../services/categoryClassifier';
 import { getCategoryDisplayName, normalizeCategoryKey } from '../../utils/categoryUtils';
+import { requestAiPostSeo, prepareImageForAiAnalysis } from '../../services/aiPostService';
 
 interface PostFormModalProps {
   isOpen: boolean;
@@ -52,6 +60,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
   onClose,
   onSave,
 }) => {
+  const { currentUser } = useAuth();
+  const [creatorMode, setCreatorMode] = useState<'ai' | 'manual'>(post ? 'manual' : 'ai');
   const [imageMode, setImageMode] = useState<'url' | 'upload'>('url');
   const [imageUrl, setImageUrl] = useState('');
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
@@ -63,6 +73,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
   const [activePromptTab, setActivePromptTab] = useState<'photo' | 'video'>('photo');
   const [categoryId, setCategoryId] = useState('');
   const [tagsInput, setTagsInput] = useState('');
+  const [keywordsInput, setKeywordsInput] = useState('');
+  const [altText, setAltText] = useState('');
   const [seoTitle, setSeoTitle] = useState('');
   const [metaDescription, setMetaDescription] = useState('');
   const [featured, setFeatured] = useState(false);
@@ -70,6 +82,22 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
   const [status, setStatus] = useState<PostStatus>('published');
   const [scheduledDate, setScheduledDate] = useState('');
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+
+  // AI Smart Post Creator state
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [aiAnalysisStep, setAiAnalysisStep] = useState('');
+  const [aiResult, setAiResult] = useState<AiGeneratedSeoData | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiImageAnalyzed, setAiImageAnalyzed] = useState<boolean | null>(null);
+  const [aiImageNote, setAiImageNote] = useState<string | null>(null);
+  const [aiDuplicateWarning, setAiDuplicateWarning] = useState<string | null>(null);
+  const [aiSimilarTitle, setAiSimilarTitle] = useState<string | null>(null);
+  const [aiQualityNotes, setAiQualityNotes] = useState<string[]>([]);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [newTagInput, setNewTagInput] = useState('');
+  const [newKeywordInput, setNewKeywordInput] = useState('');
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const aiFileInputRef = useRef<HTMLInputElement>(null);
 
   // Per-Post Badge Settings
   const [badgeMode, setBadgeMode] = useState<BadgeMode>('automatic');
@@ -87,6 +115,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
 
   useEffect(() => {
     if (post) {
+      setCreatorMode('manual');
       setIsManualCategory(true);
       // Edit mode: load all existing images safely
       const existingImgs = getPostGallery(post);
@@ -117,6 +146,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
 
       setCategoryId(post.categoryId || (categories[0]?.id || ''));
       setTagsInput(post.tags ? post.tags.join(', ') : '');
+      setKeywordsInput(post.keywords ? post.keywords.join(', ') : '');
+      setAltText(post.altText || '');
       setSeoTitle(post.seoTitle || '');
       setMetaDescription(post.metaDescription || '');
       setFeatured(post.featured || false);
@@ -134,6 +165,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
         setTimerSeconds(5);
       }
     } else {
+      setCreatorMode('ai');
       setIsManualCategory(false);
       // New post: Gallery MUST start completely clean with 0 images
       setGalleryImages([]);
@@ -143,8 +175,10 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       setPhotoPrompt('');
       setVideoPrompt('');
       setActivePromptTab('photo');
-      setCategoryId(categories.find(c => c.id === 'man')?.id || categories[0]?.id || 'man');
+      setCategoryId(categories.find((c) => c.id === 'man')?.id || categories[0]?.id || 'man');
       setTagsInput('');
+      setKeywordsInput('');
+      setAltText('');
       setSeoTitle('');
       setMetaDescription('');
       setFeatured(false);
@@ -155,6 +189,11 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       setBadgeType('AI PROMPT');
       setTimerEnabled(true);
       setTimerSeconds(5);
+      setAiResult(null);
+      setAiError(null);
+      setAiDuplicateWarning(null);
+      setAiQualityNotes([]);
+      setSelectedImageFile(null);
     }
     setNewUrlInput('');
   }, [post, categories, isOpen]);
@@ -185,6 +224,150 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       }
     }
   }, [post, isManualCategory, contentCategory, categories, categoryId]);
+
+  const currentTags = useMemo(() => {
+    return tagsInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+  }, [tagsInput]);
+
+  const handleRemoveTag = (tagToRemove: string) => {
+    const updated = currentTags.filter((t) => t.toLowerCase() !== tagToRemove.toLowerCase());
+    setTagsInput(updated.join(', '));
+  };
+
+  const handleAddTag = (tagToAdd: string) => {
+    const trimmed = tagToAdd.trim().replace(/^#+/, '');
+    if (!trimmed) return;
+    if (!currentTags.some((t) => t.toLowerCase() === trimmed.toLowerCase())) {
+      setTagsInput([...currentTags, trimmed].join(', '));
+    }
+    setNewTagInput('');
+  };
+
+  const currentKeywords = useMemo(() => {
+    return keywordsInput
+      .split(',')
+      .map((k) => k.trim())
+      .filter(Boolean);
+  }, [keywordsInput]);
+
+  const handleRemoveKeyword = (keywordToRemove: string) => {
+    const updated = currentKeywords.filter((k) => k.toLowerCase() !== keywordToRemove.toLowerCase());
+    setKeywordsInput(updated.join(', '));
+  };
+
+  const handleAddKeyword = (keywordToAdd: string) => {
+    const trimmed = keywordToAdd.trim();
+    if (!trimmed) return;
+    if (!currentKeywords.some((k) => k.toLowerCase() === trimmed.toLowerCase())) {
+      setKeywordsInput([...currentKeywords, trimmed].join(', '));
+    }
+    setNewKeywordInput('');
+  };
+
+  const handleAiImageSelect = async (file: File) => {
+    if (!file || !file.type.startsWith('image/')) {
+      showToast('Invalid File', 'Please select an image file (JPEG, PNG, WEBP).', 'error');
+      return;
+    }
+    setSelectedImageFile(file);
+    setIsUploading(true);
+    try {
+      const previewDataUrl = await prepareImageForAiAnalysis(file);
+      setImageUrl(previewDataUrl);
+      setGalleryImages([previewDataUrl]);
+      showToast('Image Attached', 'Visual attached for AI Vision analysis.', 'info');
+    } catch (err) {
+      console.error('Failed to prepare image for AI:', err);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleAnalyzeSeo = async (retryPromptOnly = false) => {
+    const currentPrompt = photoPrompt.trim() || videoPrompt.trim();
+    if (!currentPrompt) {
+      showToast('Prompt Required', 'Please enter your AI prompt text to analyze.', 'error');
+      return;
+    }
+
+    setAiAnalyzing(true);
+    setAiError(null);
+    setAiAnalysisStep(
+      imageUrl && !retryPromptOnly
+        ? 'Gemini Vision inspecting visual details, lighting, style & prompt...'
+        : 'Gemini AI generating high-intent SEO metadata...'
+    );
+
+    try {
+      const idToken = currentUser ? await currentUser.getIdToken().catch(() => null) : null;
+      const existingTitles = promptStore.getPosts().map((p) => p.title).filter(Boolean);
+
+      const res = await requestAiPostSeo({
+        prompt: currentPrompt,
+        image: !retryPromptOnly ? (imageUrl || undefined) : undefined,
+        categories,
+        existingTitles,
+        idToken,
+      });
+
+      if (!res.success || !res.data) {
+        setAiError(res.error || 'AI generation failed. Please try again.');
+        showToast('AI Generation Notice', res.error || 'AI generation failed. Please try again.', 'error');
+        return;
+      }
+
+      const data = res.data;
+      setAiResult(data);
+      setTitle(data.title);
+      setShortDescription(data.description);
+      setTagsInput(data.tags.join(', '));
+      setKeywordsInput(data.keywords.join(', '));
+      setAltText(data.altText);
+      setSeoTitle(data.title);
+      setMetaDescription(data.description);
+
+      setAiImageAnalyzed(res.imageAnalyzed ?? false);
+      setAiImageNote(res.imageNote || null);
+      setAiDuplicateWarning(res.duplicateWarning || null);
+      setAiSimilarTitle(res.similarExistingTitle || null);
+      setAiQualityNotes(res.qualityNotes || []);
+
+      // Auto match category if found
+      if (data.category) {
+        const match = categories.find(
+          (c) =>
+            normalizeCategoryKey(c.id) === normalizeCategoryKey(data.category) ||
+            normalizeCategoryKey(c.name) === normalizeCategoryKey(data.category) ||
+            normalizeCategoryKey(c.slug) === normalizeCategoryKey(data.category)
+        );
+        if (match) {
+          setCategoryId(match.id);
+          setIsManualCategory(true);
+        }
+      }
+
+      showToast('✨ SEO Generated', 'Review and edit the generated metadata before publishing.', 'success');
+    } catch (err: any) {
+      console.error('Error during AI analysis:', err);
+      setAiError('AI generation failed. Please try again.');
+      showToast('AI Error', 'AI generation failed. Please try again.', 'error');
+    } finally {
+      setAiAnalyzing(false);
+    }
+  };
+
+  const validateSeoQuality = (): { valid: boolean; error?: string } => {
+    if (!title.trim()) return { valid: false, error: 'Title cannot be empty.' };
+    const promptContent = photoPrompt.trim() || videoPrompt.trim();
+    if (!promptContent) return { valid: false, error: 'Prompt content cannot be empty.' };
+    if (!shortDescription.trim()) return { valid: false, error: 'Description cannot be empty.' };
+    if (currentTags.length === 0) return { valid: false, error: 'At least one tag is required for SEO.' };
+    if (!altText.trim() && imageUrl) return { valid: false, error: 'Image Alt Text is required for accessibility & SEO.' };
+    return { valid: true };
+  };
 
   if (!isOpen) return null;
 
@@ -315,6 +498,11 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       .map((t) => t.trim())
       .filter(Boolean);
 
+    const parsedKeywords = keywordsInput
+      .split(',')
+      .map((k) => k.trim())
+      .filter(Boolean);
+
     const finalGallery = galleryImages.filter((img) => typeof img === 'string' && img.trim().length > 0);
 
     // Compress data URI images if present
@@ -327,7 +515,26 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       }
     }
 
-    const coverUrl = processedGallery[0] || (imageUrl.trim().length > 0 ? imageUrl.trim() : '');
+    let coverUrl = processedGallery[0] || (imageUrl.trim().length > 0 ? imageUrl.trim() : '');
+
+    // Upload image to Cloudinary if a local file was selected and not yet uploaded
+    if (selectedImageFile) {
+      const cldSettings = promptStore.getCloudinarySettings();
+      if (cldSettings.cloudName && cldSettings.uploadPreset) {
+        setIsUploading(true);
+        showToast('Uploading to Cloudinary', 'Transferring media to Cloudinary storage...', 'info');
+        const cldRes = await promptStore.uploadToCloudinary(selectedImageFile);
+        setIsUploading(false);
+        if (cldRes.success && cldRes.url) {
+          coverUrl = cldRes.url;
+          if (processedGallery.length > 0) {
+            processedGallery[0] = coverUrl;
+          } else {
+            processedGallery.push(coverUrl);
+          }
+        }
+      }
+    }
 
     // Determine postType:
     // If only video prompt provided (no photo prompt), postType is 'video_prompt'.
@@ -350,9 +557,11 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
         categoryId: resolvedCatId,
         categoryName: resolvedCatName,
         tags: parsedTags,
+        keywords: parsedKeywords.length > 0 ? parsedKeywords : undefined,
+        altText: altText.trim() || undefined,
         imageUrl: coverUrl,
-        images: processedGallery,
-        gallery: processedGallery,
+        images: processedGallery.length > 0 ? processedGallery : (coverUrl ? [coverUrl] : []),
+        gallery: processedGallery.length > 0 ? processedGallery : (coverUrl ? [coverUrl] : []),
         featured,
         trending,
         status,
@@ -435,6 +644,51 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
             </div>
           </div>
 
+          {/* Mode Switcher Tabs */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-2.5 bg-zinc-950 border-b border-zinc-800">
+            <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-zinc-900 border border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setCreatorMode('ai')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                  creatorMode === 'ai'
+                    ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-600/30'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <Wand2 className="w-3.5 h-3.5 text-sky-300" />
+                <span>AI Smart Post Creator</span>
+                <span className="px-1.5 py-0.5 rounded bg-white/20 text-[9px] font-black uppercase tracking-wider">
+                  Auto SEO
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCreatorMode('manual')}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                  creatorMode === 'manual'
+                    ? 'bg-zinc-800 text-white shadow-md'
+                    : 'text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span>Full Post Editor</span>
+              </button>
+            </div>
+
+            {creatorMode === 'ai' && (
+              <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-500/10 text-purple-300 border border-purple-500/20 font-medium">
+                  <Sparkles className="w-3 h-3 text-purple-400" />
+                  Gemini Vision 2.5 + Prompt
+                </span>
+                <span className="hidden md:inline text-zinc-500">•</span>
+                <span className="hidden md:inline text-zinc-400">Prompt + Image → Instant Google SEO</span>
+              </div>
+            )}
+          </div>
+
           {/* Form Scrollable Body */}
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
             {isPreviewMode ? (
@@ -451,6 +705,531 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                     {photoPrompt || videoPrompt || 'Prompt text preview...'}
                   </div>
                 </div>
+              </div>
+            ) : creatorMode === 'ai' ? (
+              /* AI SMART POST CREATOR UI */
+              <div className="space-y-6">
+                {/* Hero / Intro Card */}
+                <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-blue-950/40 via-indigo-950/40 to-purple-950/40 border border-indigo-500/30 space-y-2">
+                  <div className="flex items-center gap-2 text-indigo-400">
+                    <Wand2 className="w-5 h-5 text-indigo-400" />
+                    <h4 className="text-sm font-black uppercase tracking-wider text-white">
+                      AI Smart Post Creator — Vision + SEO Engine
+                    </h4>
+                    <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold text-[10px] border border-indigo-500/30">
+                      Gemini Vision 2.5
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-300 leading-relaxed max-w-3xl">
+                    Create a complete, Google-optimized prompt post by providing only the{' '}
+                    <strong className="text-white">AI Prompt</strong> and an{' '}
+                    <strong className="text-white">Image</strong>. Gemini Vision analyzes the visual aesthetic, lighting, style, and subject matter to automatically generate an SEO title, compelling meta description, high-ranking tags, search keywords, category match, and accessibility alt text.
+                  </p>
+                </div>
+
+                {/* Input Step: Prompt & Image */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {/* Step 1: AI Prompt */}
+                  <div className="p-5 rounded-3xl bg-zinc-950/70 border border-zinc-800 space-y-3 flex flex-col">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-purple-400" />
+                        <label className="text-xs font-black uppercase tracking-wider text-white">
+                          1. AI Prompt Text *
+                        </label>
+                      </div>
+                      <span className="text-[11px] font-mono text-zinc-400">
+                        {(photoPrompt || videoPrompt).length} chars
+                      </span>
+                    </div>
+
+                    <textarea
+                      value={photoPrompt || videoPrompt}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPhotoPrompt(val);
+                        if (videoPrompt) setVideoPrompt('');
+                      }}
+                      placeholder="Paste your full AI prompt here...&#10;&#10;e.g. Ultra-realistic cinematic 8k portrait of an adventurous nomad in glowing sunset light, shot on 85mm f/1.4 lens, photorealistic texture, warm golden hour tones..."
+                      rows={8}
+                      className="w-full flex-1 bg-zinc-900 border border-zinc-800 focus:border-purple-500 rounded-2xl p-4 text-xs font-mono text-white placeholder-zinc-500 resize-none focus:outline-none transition-colors"
+                    />
+
+                    <p className="text-[11px] text-zinc-400 italic">
+                      💡 Tip: Detail lighting, camera angle, subject, and style for the most accurate SEO tags.
+                    </p>
+                  </div>
+
+                  {/* Step 2: Image for Vision */}
+                  <div className="p-5 rounded-3xl bg-zinc-950/70 border border-zinc-800 space-y-3 flex flex-col">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ImageIcon className="w-4 h-4 text-blue-400" />
+                        <label className="text-xs font-black uppercase tracking-wider text-white">
+                          2. Image (For Vision Analysis)
+                        </label>
+                      </div>
+                      {imageUrl && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> Attached
+                        </span>
+                      )}
+                    </div>
+
+                    {imageUrl ? (
+                      <div className="relative aspect-video w-full rounded-2xl overflow-hidden border-2 border-indigo-500/40 bg-zinc-900 flex-1 group">
+                        <img src={imageUrl} alt="AI analysis preview" className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40 opacity-90 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-3">
+                          <div className="flex items-center justify-between">
+                            <span className="px-2 py-1 rounded-lg bg-emerald-600/90 text-white font-bold text-[10px] shadow-sm flex items-center gap-1">
+                              <Sparkles className="w-3 h-3" /> Ready for Vision AI
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setImageUrl('');
+                                setGalleryImages([]);
+                                setSelectedImageFile(null);
+                              }}
+                              className="p-1.5 rounded-xl bg-red-600/90 hover:bg-red-500 text-white text-xs font-bold transition-all cursor-pointer shadow-md"
+                              title="Remove Image"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] text-zinc-300">
+                            <span className="truncate max-w-[180px]">
+                              {selectedImageFile ? selectedImageFile.name : 'Web URL Image'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => aiFileInputRef.current?.click()}
+                              className="px-2.5 py-1 rounded-lg bg-zinc-800/90 hover:bg-zinc-700 text-white font-semibold cursor-pointer border border-zinc-700 text-xs"
+                            >
+                              Replace Image
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setIsDraggingImage(true);
+                        }}
+                        onDragLeave={() => setIsDraggingImage(false)}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setIsDraggingImage(false);
+                          const file = e.dataTransfer.files?.[0];
+                          if (file) handleAiImageSelect(file);
+                        }}
+                        onClick={() => aiFileInputRef.current?.click()}
+                        className={`flex-1 min-h-[180px] border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
+                          isDraggingImage
+                            ? 'border-indigo-400 bg-indigo-500/10'
+                            : 'border-zinc-800 hover:border-zinc-700 bg-zinc-900/50 hover:bg-zinc-900'
+                        }`}
+                      >
+                        <Upload className="w-8 h-8 text-indigo-400 mb-2" />
+                        <p className="text-xs font-bold text-white">Click or drag image file here</p>
+                        <p className="text-[11px] text-zinc-400 mt-1 max-w-xs">
+                          Gemini Vision analyzes color palette, lighting, composition & style
+                        </p>
+                        <span className="mt-3 px-2.5 py-1 rounded-xl bg-zinc-800 text-[10px] text-zinc-300 font-medium">
+                          Supports JPEG, PNG, WEBP
+                        </span>
+                      </div>
+                    )}
+
+                    <input
+                      type="file"
+                      ref={aiFileInputRef}
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleAiImageSelect(file);
+                      }}
+                      className="hidden"
+                    />
+
+                    {/* Or paste URL accordion */}
+                    {!imageUrl && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          type="text"
+                          placeholder="Or paste direct image URL..."
+                          value={newUrlInput}
+                          onChange={(e) => setNewUrlInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              if (newUrlInput.trim()) {
+                                setImageUrl(newUrlInput.trim());
+                                setGalleryImages([newUrlInput.trim()]);
+                                setNewUrlInput('');
+                              }
+                            }
+                          }}
+                          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (newUrlInput.trim()) {
+                              setImageUrl(newUrlInput.trim());
+                              setGalleryImages([newUrlInput.trim()]);
+                              setNewUrlInput('');
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold text-xs cursor-pointer"
+                        >
+                          Attach
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Central Action CTA */}
+                <div className="space-y-3">
+                  <button
+                    type="button"
+                    onClick={() => handleAnalyzeSeo(false)}
+                    disabled={aiAnalyzing || (!photoPrompt.trim() && !videoPrompt.trim())}
+                    className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 text-white font-black text-sm sm:text-base shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-3 transition-all cursor-pointer group active:scale-[0.99] border border-indigo-400/20"
+                  >
+                    {aiAnalyzing ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin text-white" />
+                        <span className="tracking-wide">
+                          {aiAnalysisStep || 'Gemini Vision analyzing prompt & visual aesthetics...'}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-5 h-5 text-amber-300 group-hover:rotate-12 transition-transform" />
+                        <span className="tracking-wide">✨ ANALYZE & GENERATE SEO</span>
+                        <span className="hidden sm:inline text-xs font-normal text-indigo-200">
+                          (Title, Description, Tags, Keywords, Category & Alt-Text)
+                        </span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Feedback alerts */}
+                  {aiError && (
+                    <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-between gap-3 text-red-300 text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                        <span>{aiError}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAnalyzeSeo(true)}
+                        className="px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-white font-bold text-[11px] shrink-0 cursor-pointer"
+                      >
+                        Retry Prompt Only
+                      </button>
+                    </div>
+                  )}
+
+                  {aiDuplicateWarning && (
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 text-amber-300 text-xs">
+                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold">Originality Check Applied</p>
+                        <p className="text-amber-200/90 mt-0.5">{aiDuplicateWarning}</p>
+                        {aiSimilarTitle && (
+                          <p className="text-[10px] text-amber-400/80 mt-1">Existing post: "{aiSimilarTitle}"</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {aiQualityNotes && aiQualityNotes.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                        SEO Optimizations:
+                      </span>
+                      {aiQualityNotes.map((note, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2.5 py-1 rounded-xl bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300 flex items-center gap-1.5"
+                        >
+                          <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                          {note}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* AI PREVIEW UI (Editable) */}
+                {(aiResult || title.trim()) && (
+                  <div className="p-5 sm:p-6 rounded-3xl bg-zinc-950/90 border-2 border-indigo-500/40 space-y-6 shadow-2xl">
+                    {/* Preview Header */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-md">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-extrabold uppercase tracking-wider text-white flex items-center gap-2">
+                            <span>✨ AI GENERATED SEO</span>
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold normal-case">
+                              {aiImageAnalyzed
+                                ? '✓ Vision + Prompt Analyzed'
+                                : '✓ Prompt Analyzed'}
+                            </span>
+                          </h4>
+                          <p className="text-[11px] text-zinc-400">
+                            All fields below are directly editable. Review and customize before publishing.
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAnalyzeSeo(false)}
+                        disabled={aiAnalyzing}
+                        className="px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${aiAnalyzing ? 'animate-spin' : ''}`} />
+                        <span>Regenerate</span>
+                      </button>
+                    </div>
+
+                    {/* FIELD 1: TITLE */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                          <span>Post Title (Google Search Title) *</span>
+                        </label>
+                        <span
+                          className={`text-[11px] font-mono font-bold ${
+                            title.length > 70 ? 'text-amber-400' : 'text-emerald-400'
+                          }`}
+                        >
+                          {title.length} / 65 characters optimal
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={title}
+                        onChange={(e) => {
+                          setTitle(e.target.value);
+                          setSeoTitle(e.target.value);
+                        }}
+                        placeholder="Optimized prompt title"
+                        className="w-full bg-zinc-900 border border-zinc-800 focus:border-indigo-500 rounded-2xl px-4 py-3 text-xs sm:text-sm font-semibold text-white focus:outline-none transition-colors"
+                        required
+                      />
+
+                      {/* Google Search Snippet Box */}
+                      <div className="p-3.5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 space-y-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                          Google Search SERP Preview
+                        </p>
+                        <p className="text-[11px] text-zinc-400 flex items-center gap-1 font-mono truncate">
+                          <Globe className="w-3 h-3 text-emerald-400 shrink-0" />
+                          https://sahiledit.vercel.app › prompt ›{' '}
+                          {title ? title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 32) : 'ai-prompt'}
+                        </p>
+                        <p className="text-sm font-bold text-blue-400 hover:underline line-clamp-1 cursor-pointer">
+                          {title || 'Sahil Edit Vercel – Official AI Prompt Library'}
+                        </p>
+                        <p className="text-xs text-zinc-400 line-clamp-2">
+                          {shortDescription || 'Discover high-quality AI prompts with photography camera settings, creative lighting, and instant copy.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* FIELD 2: SHORT DESCRIPTION */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-white uppercase tracking-wider">
+                          Description (Post Summary & Meta Description) *
+                        </label>
+                        <span
+                          className={`text-[11px] font-mono font-bold ${
+                            shortDescription.length > 160 ? 'text-amber-400' : 'text-emerald-400'
+                          }`}
+                        >
+                          {shortDescription.length} characters (120–160 optimal)
+                        </span>
+                      </div>
+                      <textarea
+                        value={shortDescription}
+                        onChange={(e) => {
+                          setShortDescription(e.target.value);
+                          setMetaDescription(e.target.value);
+                        }}
+                        rows={3}
+                        placeholder="Concise, keyword-rich description for Google search snippet and social cards..."
+                        className="w-full bg-zinc-900 border border-zinc-800 focus:border-indigo-500 rounded-2xl p-4 text-xs text-white focus:outline-none transition-colors resize-none"
+                        required
+                      />
+                    </div>
+
+                    {/* FIELD 3: TAGS */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                          <Tag className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>Tags ({currentTags.length})</span>
+                        </label>
+                        <span className="text-[10px] text-zinc-400">Click × to remove or type below to add</span>
+                      </div>
+
+                      <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 flex flex-wrap items-center gap-2">
+                        {currentTags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 text-xs font-semibold"
+                          >
+                            <span>#{tag}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTag(tag)}
+                              className="hover:text-red-400 cursor-pointer p-0.5"
+                              title={`Remove #${tag}`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={newTagInput}
+                            onChange={(e) => setNewTagInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ',') {
+                                e.preventDefault();
+                                handleAddTag(newTagInput);
+                              }
+                            }}
+                            placeholder="+ Add tag..."
+                            className="bg-transparent border-none text-xs text-white placeholder-zinc-500 focus:outline-none px-2 py-1 min-w-[90px]"
+                          />
+                          {newTagInput.trim() && (
+                            <button
+                              type="button"
+                              onClick={() => handleAddTag(newTagInput)}
+                              className="px-2 py-1 rounded-lg bg-indigo-600 text-white text-[10px] font-bold cursor-pointer"
+                            >
+                              Add
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* FIELD 4: KEYWORDS */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                          <span>Long-Tail Search Keywords ({currentKeywords.length})</span>
+                        </label>
+                        <span className="text-[10px] text-zinc-400">Targeted search phrases for Google ranking</span>
+                      </div>
+
+                      <div className="p-3 rounded-2xl bg-zinc-900 border border-zinc-800 flex flex-wrap items-center gap-2">
+                        {currentKeywords.map((kw) => (
+                          <span
+                            key={kw}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-500/10 text-purple-300 border border-purple-500/20 text-xs font-semibold"
+                          >
+                            <span>{kw}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveKeyword(kw)}
+                              className="hover:text-red-400 cursor-pointer p-0.5"
+                              title={`Remove keyword`}
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="text"
+                            value={newKeywordInput}
+                            onChange={(e) => setNewKeywordInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ',') {
+                                e.preventDefault();
+                                handleAddKeyword(newKeywordInput);
+                              }
+                            }}
+                            placeholder="+ Add keyword phrase..."
+                            className="bg-transparent border-none text-xs text-white placeholder-zinc-500 focus:outline-none px-2 py-1 min-w-[140px]"
+                          />
+                          {newKeywordInput.trim() && (
+                            <button
+                              type="button"
+                              onClick={() => handleAddKeyword(newKeywordInput)}
+                              className="px-2 py-1 rounded-lg bg-purple-600 text-white text-[10px] font-bold cursor-pointer"
+                            >
+                              Add
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* FIELD 5 & 6: CATEGORY & ALT-TEXT GRID */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                      {/* Category */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-white uppercase tracking-wider">
+                          Category *
+                        </label>
+                        <select
+                          value={categoryId}
+                          onChange={(e) => {
+                            setCategoryId(e.target.value);
+                            setIsManualCategory(true);
+                          }}
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs font-semibold text-white focus:outline-none focus:border-indigo-500"
+                        >
+                          {categories.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                        {aiResult?.category && (
+                          <p className="text-[11px] text-indigo-400 font-medium">
+                            AI Category Match: {aiResult.category}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Alt-Text */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-white uppercase tracking-wider">
+                          Image Alt Text (Google Images) *
+                        </label>
+                        <input
+                          type="text"
+                          value={altText}
+                          onChange={(e) => setAltText(e.target.value)}
+                          placeholder="Accessible visual description for Google Image index"
+                          className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        />
+                        <p className="text-[11px] text-zinc-400">
+                          Accurately describes visual contents for SEO and screen readers.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               /* Editor Structured Cards */
@@ -1096,28 +1875,75 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
 
                 {/* CARD 4: SEO METADATA */}
                 <div className="p-6 rounded-3xl bg-zinc-950/60 border border-zinc-800/80 space-y-4">
-                  <div className="flex items-center gap-2 border-b border-zinc-800 pb-3">
-                    <Sparkles className="w-4 h-4 text-sky-400" />
-                    <h4 className="text-xs font-black uppercase tracking-wider text-zinc-300">
-                      4. SEO & Search Engine Optimization
-                    </h4>
+                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-sky-400" />
+                      <h4 className="text-xs font-black uppercase tracking-wider text-zinc-300">
+                        4. SEO & Search Engine Optimization
+                      </h4>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAnalyzeSeo(false)}
+                      disabled={aiAnalyzing || (!photoPrompt.trim() && !videoPrompt.trim())}
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+                    >
+                      {aiAnalyzing ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Generating SEO...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="w-3.5 h-3.5" />
+                          <span>Auto-Fill with AI</span>
+                        </>
+                      )}
+                    </button>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <input
-                      type="text"
-                      value={seoTitle}
-                      onChange={(e) => setSeoTitle(e.target.value)}
-                      placeholder="Custom SEO Title"
-                      className="bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
-                    />
-                    <input
-                      type="text"
-                      value={metaDescription}
-                      onChange={(e) => setMetaDescription(e.target.value)}
-                      placeholder="Meta Description for Google"
-                      className="bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
-                    />
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-zinc-400">Custom SEO Title</label>
+                      <input
+                        type="text"
+                        value={seoTitle}
+                        onChange={(e) => setSeoTitle(e.target.value)}
+                        placeholder="Custom SEO Title"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-zinc-400">Meta Description for Google</label>
+                      <input
+                        type="text"
+                        value={metaDescription}
+                        onChange={(e) => setMetaDescription(e.target.value)}
+                        placeholder="Meta Description for Google"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[11px] font-bold text-zinc-400">Image Alt Text (Google Images & Accessibility)</label>
+                      <input
+                        type="text"
+                        value={altText}
+                        onChange={(e) => setAltText(e.target.value)}
+                        placeholder="Descriptive alt text for Google Image search and accessibility"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="text-[11px] font-bold text-zinc-400">Long-Tail Search Keywords (Comma separated)</label>
+                      <input
+                        type="text"
+                        value={keywordsInput}
+                        onChange={(e) => setKeywordsInput(e.target.value)}
+                        placeholder="e.g. cinematic portrait prompt, 8k photography prompt, midjourney photorealistic lighting"
+                        className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

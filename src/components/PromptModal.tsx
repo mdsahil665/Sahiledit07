@@ -637,7 +637,7 @@ export const PromptModal: React.FC<PromptModalProps> = ({
                   {/* Foreground Sharp Image */}
                   <img
                     src={getOptimizedDisplayUrl(galleryImages[activeImageIndex] || post.imageUrl, { width: 1600 })}
-                    alt={`${post.title} - Image ${activeImageIndex + 1}`}
+                    alt={post.altText ? `${post.altText} - Image ${activeImageIndex + 1}` : `${post.title} - Image ${activeImageIndex + 1}`}
                     loading="lazy"
                     decoding="async"
                     className="relative z-10 w-full h-auto max-h-[75vh] sm:max-h-[600px] object-contain rounded-xl sm:rounded-2xl transition-transform duration-300 group-hover:scale-[1.005] shadow-2xl"

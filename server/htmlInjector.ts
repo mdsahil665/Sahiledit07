@@ -135,7 +135,7 @@ export function injectPostMetadataIntoHtml(
     if (/<meta property="og:image" content=".*?"[^>]*>/is.test(html)) {
       html = html.replace(
         /<meta property="og:image" content=".*?"[^>]*>/is,
-        `<meta property="og:image" content="${mainCoverImage}" id="seo-og-image" />\n    <meta property="og:image:secure_url" content="${mainCoverImage}" />\n    <meta property="og:image:alt" content="${escapeHtml(postTitle)}" />\n    <meta property="og:image:type" content="${imageMimeType}" />\n    <meta property="og:image:width" content="1200" />\n    <meta property="og:image:height" content="630" />`
+        `<meta property="og:image" content="${mainCoverImage}" id="seo-og-image" />\n    <meta property="og:image:secure_url" content="${mainCoverImage}" />\n    <meta property="og:image:alt" content="${escapeHtml(post.altText || postTitle)}" />\n    <meta property="og:image:type" content="${imageMimeType}" />\n    <meta property="og:image:width" content="1200" />\n    <meta property="og:image:height" content="630" />`
       );
     }
   } else {
@@ -146,7 +146,7 @@ export function injectPostMetadataIntoHtml(
   if (/<meta property="og:site_name" content=".*?"[^>]*>/is.test(html)) {
     html = html.replace(
       /<meta property="og:site_name" content=".*?"[^>]*>/is,
-      `<meta property="og:site_name" content="Sahil Edits" />`
+      `<meta property="og:site_name" content="Sahil Edit Vercel" />`
     );
   }
 
@@ -183,7 +183,7 @@ export function injectPostMetadataIntoHtml(
     if (/<meta name="twitter:image" content=".*?"[^>]*>/is.test(html)) {
       html = html.replace(
         /<meta name="twitter:image" content=".*?"[^>]*>/is,
-        `<meta name="twitter:image" content="${mainCoverImage}" id="seo-twitter-image" />\n    <meta name="twitter:image:alt" content="${escapeHtml(postTitle)}" />`
+        `<meta name="twitter:image" content="${mainCoverImage}" id="seo-twitter-image" />\n    <meta name="twitter:image:alt" content="${escapeHtml(post.altText || postTitle)}" />`
       );
     }
   } else {
@@ -216,12 +216,18 @@ export function injectPostMetadataIntoHtml(
         url: 'https://res.cloudinary.com/i4v4x4eg/image/upload/v1788598067/l1t2aclxe7u0pjepokvu.png',
       },
     },
-    keywords: post.tags ? post.tags.join(', ') : 'AI prompts, ChatGPT, Midjourney, Flux',
+    keywords: (post.keywords && post.keywords.length > 0)
+      ? post.keywords.join(', ')
+      : (post.tags ? post.tags.join(', ') : 'AI prompts, ChatGPT, Midjourney, Flux'),
     articleSection: post.categoryName || 'AI Prompts',
   };
 
   if (mainCoverImage) {
-    jsonLdPost.image = [mainCoverImage];
+    jsonLdPost.image = {
+      '@type': 'ImageObject',
+      url: mainCoverImage,
+      caption: post.altText || post.title,
+    };
   }
   if ((post as any).videoPrompt) {
     jsonLdPost.video = {
