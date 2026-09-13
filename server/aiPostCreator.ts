@@ -502,47 +502,58 @@ Generate the complete JSON metadata strictly adhering to the schema.`;
       },
     };
 
-    let response;
-    try {
-      response = await ai.models.generateContent({
-        model: "gemini-flash-latest",
-        contents: { parts: contentsParts },
-        config: genConfig,
-      });
-    } catch (primaryErr: any) {
-      const errMsg = (primaryErr?.message || "").toLowerCase();
-      // If error is caused by image processing failure, retry seamlessly with prompt only
-      if (imagePart && (errMsg.includes("image") || errMsg.includes("unable to process") || errMsg.includes("invalid argument"))) {
-        console.warn("[AI Post Creator] Image unprocessable by vision model; retrying with prompt only...");
-        imagePart = null;
-        imageAnalyzed = false;
-        imageNote = "Image could not be processed by AI Vision; generated SEO from prompt.";
-        const promptOnlyParts = [{ text: userInstruction }];
-        try {
-          response = await ai.models.generateContent({
-            model: "gemini-flash-latest",
-            contents: { parts: promptOnlyParts },
-            config: genConfig,
-          });
-        } catch (retryErr) {
-          throw retryErr;
-        }
-      } else if (
-        errMsg.includes("503") ||
-        errMsg.includes("high demand") ||
-        errMsg.includes("unavailable") ||
-        errMsg.includes("resource_exhausted") ||
-        errMsg.includes("429")
-      ) {
-        console.warn("[AI Post Creator] Primary model busy, retrying with gemini-3.8-flash...");
+    const CANDIDATE_MODELS = [
+      "gemini-3.1-flash-lite",
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite",
+      "gemini-3-flash-preview",
+      "gemini-flash-latest",
+      "gemini-3.8-flash",
+    ];
+
+    let response: any = null;
+    let lastError: any = null;
+    let activeParts = contentsParts;
+
+    for (const candidateModel of CANDIDATE_MODELS) {
+      try {
         response = await ai.models.generateContent({
-          model: "gemini-3.8-flash",
-          contents: { parts: contentsParts },
+          model: candidateModel,
+          contents: { parts: activeParts },
           config: genConfig,
         });
-      } else {
-        throw primaryErr;
+        if (response && response.text) {
+          break;
+        }
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = (err?.message || "").toLowerCase();
+        // If image cannot be processed by vision model, switch to prompt-only for this and subsequent models
+        if (imagePart && (errMsg.includes("image") || errMsg.includes("unable to process") || errMsg.includes("invalid argument"))) {
+          console.warn(`[AI Post Creator] Vision unsupported on ${candidateModel}; switching to prompt-only fallback...`);
+          imagePart = null;
+          imageAnalyzed = false;
+          imageNote = "Image could not be processed by AI Vision; generated SEO from prompt.";
+          activeParts = [{ text: userInstruction }];
+          try {
+            response = await ai.models.generateContent({
+              model: candidateModel,
+              contents: { parts: activeParts },
+              config: genConfig,
+            });
+            if (response && response.text) {
+              break;
+            }
+          } catch (retryErr) {
+            lastError = retryErr;
+          }
+        }
+        console.warn(`[AI Post Creator] Model ${candidateModel} failed, trying next candidate... (${errMsg.slice(0, 80)})`);
       }
+    }
+
+    if (!response || !response.text) {
+      throw lastError || new Error("All AI models were temporarily unavailable. Please try again.");
     }
 
     const responseText = response.text;
