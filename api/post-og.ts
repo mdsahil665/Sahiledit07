@@ -43,6 +43,16 @@ function getFallbackHtml(post: any, rawSlugOrId: string) {
   <meta name="description" content="${safeDesc}" />
   <link rel="canonical" href="${canonical}" id="seo-canonical-link" />
   
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-QMLSM31R3B"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-QMLSM31R3B');
+  </script>
+
   <!-- Google AdSense Site Verification & Ad Engine -->
   <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6065974907777223" crossorigin="anonymous"></script>
 

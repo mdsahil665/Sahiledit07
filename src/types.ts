@@ -632,5 +632,13 @@ export const DEFAULT_PREMIUM_SETTINGS: PremiumSettings = {
   razorpaySecretKeyMasked: '••••••••',
 };
 
+declare global {
+  interface Window {
+    dataLayer?: any[];
+    gtag?: (...args: any[]) => void;
+  }
+}
+
+
 
 
