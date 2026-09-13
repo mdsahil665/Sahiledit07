@@ -132,6 +132,14 @@ async function startServer() {
     }).send("google.com, pub-6065974907777223, DIRECT, f08c47fec0942fa0\n");
   });
 
+  // Google Search Console Site Verification Endpoint
+  app.get("/google0fdb75f42362435f.html", (_req, res) => {
+    res.status(200).set({
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "public, max-age=3600, s-maxage=86400",
+    }).send("google-site-verification: google0fdb75f42362435f.html\n");
+  });
+
   // Dynamic XML Sitemap Endpoint
   app.get("/sitemap.xml", async (_req, res) => {
     try {

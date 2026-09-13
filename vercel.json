@@ -7,6 +7,14 @@
   },
   "rewrites": [
     {
+      "source": "/google0fdb75f42362435f.html",
+      "destination": "/api/google-verify"
+    },
+    {
+      "source": "/api/google-verify",
+      "destination": "/api/google-verify"
+    },
+    {
       "source": "/ads.txt",
       "destination": "/api/ads"
     },
