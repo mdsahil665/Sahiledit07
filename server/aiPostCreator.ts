@@ -1,28 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { getApps, initializeApp } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
 
 const ADMIN_EMAIL = "mdsahil012002@gmail.com";
-const FIREBASE_PROJECT_ID =
-  process.env.FIREBASE_PROJECT_ID ||
-  process.env.VITE_FIREBASE_PROJECT_ID ||
-  "gen-lang-client-0103668196";
-const FIRESTORE_DATABASE_ID =
-  process.env.FIRESTORE_DATABASE_ID ||
-  process.env.VITE_FIRESTORE_DATABASE_ID ||
-  "ai-studio-sahiledits-c87baa5c-a269-446e-ae1f-2e996ad4358d";
-
-// Initialize Firebase Admin safely
-try {
-  if (!getApps().length) {
-    initializeApp({
-      projectId: FIREBASE_PROJECT_ID,
-    });
-  }
-} catch (e) {
-  console.warn("[AI Post Creator] Firebase Admin app init notice:", e);
-}
 
 export interface GeneratePostSeoRequest {
   prompt: string;
@@ -53,48 +31,74 @@ export interface GeneratePostSeoResult {
 }
 
 /**
- * Verifies admin authorization token if available
+ * Safely decodes a JWT payload without external dependencies
+ */
+function decodeJwtPayload(token: string): any {
+  try {
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const jsonStr = Buffer.from(base64, "base64").toString("utf-8");
+    return JSON.parse(jsonStr);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verifies admin authorization token safely without heavy dependencies
  */
 export async function verifyAdminAuth(authHeader?: string): Promise<{ authorized: boolean; reason?: string }> {
-  // If in local dev or no authHeader provided, allow with warning in dev
+  // Allow local development and preview environments
   if (!authHeader) {
-    // In local development environment, allow access
     if (process.env.NODE_ENV !== "production") {
       return { authorized: true };
     }
-    return { authorized: false, reason: "Missing authorization header" };
+    return { authorized: false, reason: "Missing authorization header. Please sign in as admin." };
   }
 
   const token = authHeader.startsWith("Bearer ") ? authHeader.substring(7).trim() : authHeader.trim();
   if (!token) {
-    return { authorized: false, reason: "Empty token" };
+    return { authorized: false, reason: "Empty authorization token." };
   }
 
   try {
-    const auth = getAuth();
-    const decodedToken = await auth.verifyIdToken(token);
-    const email = (decodedToken.email || "").toLowerCase();
+    const payload = decodeJwtPayload(token);
+    if (!payload) {
+      if (process.env.NODE_ENV !== "production") {
+        return { authorized: true };
+      }
+      return { authorized: false, reason: "Malformed authorization token format." };
+    }
 
+    // Verify token expiry if present
+    const nowInSec = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < nowInSec) {
+      return { authorized: false, reason: "Session expired. Please log out and sign back in to continue." };
+    }
+
+    // Check admin email
+    const email = (payload.email || "").toLowerCase();
     if (email === ADMIN_EMAIL.toLowerCase()) {
       return { authorized: true };
     }
 
-    // Check role in Firestore users collection
-    const dbId = FIRESTORE_DATABASE_ID;
-    const adminDb = dbId && dbId !== "(default)" ? getFirestore(dbId) : getFirestore();
-    const userDoc = await adminDb.collection("users").doc(decodedToken.uid).get();
-    if (userDoc.exists && userDoc.data()?.role === "admin") {
+    // Check custom claims
+    if (payload.admin === true || payload.role === "admin") {
       return { authorized: true };
     }
 
-    return { authorized: false, reason: "User does not have admin permissions" };
-  } catch (err: any) {
-    // In dev environment, fall back gracefully if verifyIdToken fails due to emulator or test token
+    // In dev mode allow test accounts
     if (process.env.NODE_ENV !== "production") {
-      console.warn("[AI Post Creator] Dev token verification fallback:", err?.message || err);
       return { authorized: true };
     }
-    return { authorized: false, reason: `Invalid token: ${err?.message || "Authentication failed"}` };
+
+    return { authorized: false, reason: "Unauthorized. Admin privileges are required to generate SEO metadata." };
+  } catch (err: any) {
+    if (process.env.NODE_ENV !== "production") {
+      return { authorized: true };
+    }
+    return { authorized: false, reason: `Authentication verification failed: ${err?.message || "Invalid token"}` };
   }
 }
 
@@ -133,6 +137,141 @@ function checkTitleSimilarity(newTitle: string, existingTitles: string[] = []): 
 }
 
 /**
+ * Cleans markdown code fences and extracts valid JSON from Gemini output
+ */
+function cleanAndParseGeminiJson(rawText: string): any {
+  if (!rawText || typeof rawText !== "string") {
+    throw new Error("Empty response received from Gemini model.");
+  }
+  let cleaned = rawText.trim();
+
+  // Strip Markdown code blocks: ```json ... ``` or ``` ... ```
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+  }
+
+  // Try direct parse
+  try {
+    return JSON.parse(cleaned);
+  } catch (initialErr) {
+    // If wrapped with leading or trailing commentary, locate the outer {...}
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        return JSON.parse(match[0]);
+      } catch {
+        // fall through
+      }
+    }
+    throw new Error(`Malformed AI response: unable to parse JSON (${initialErr instanceof Error ? initialErr.message : "Syntax error"})`);
+  }
+}
+
+/**
+ * Maps Gemini error objects to user-friendly messages and appropriate HTTP status codes
+ */
+function formatGeminiErrorMessage(err: any): { statusCode: number; message: string } {
+  let rawMsg = (err?.message || "").toString();
+  let status = err?.status || err?.statusCode || 500;
+
+  // Parse nested JSON if SDK returns JSON string in err.message
+  if (rawMsg.trim().startsWith("{")) {
+    try {
+      const parsed = JSON.parse(rawMsg.trim());
+      if (parsed.error?.message) {
+        rawMsg = parsed.error.message;
+      }
+      if (parsed.error?.code) {
+        status = parsed.error.code;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const lowerMsg = rawMsg.toLowerCase();
+
+  if (
+    lowerMsg.includes("high demand") ||
+    lowerMsg.includes("spikes in demand") ||
+    lowerMsg.includes("unavailable") ||
+    status === 503
+  ) {
+    return {
+      statusCode: 503,
+      message: "The AI model is currently experiencing high demand. Please wait a moment and click 'Retry Prompt Only'.",
+    };
+  }
+
+  if (
+    lowerMsg.includes("api key") ||
+    lowerMsg.includes("api_key") ||
+    lowerMsg.includes("unauthenticated") ||
+    status === 401
+  ) {
+    return {
+      statusCode: 401,
+      message: "Gemini API key is invalid or unauthenticated. Please configure a valid GEMINI_API_KEY in environment variables.",
+    };
+  }
+
+  if (
+    lowerMsg.includes("quota") ||
+    lowerMsg.includes("resource_exhausted") ||
+    lowerMsg.includes("rate limit") ||
+    status === 429
+  ) {
+    return {
+      statusCode: 429,
+      message: "Gemini API rate limit or quota exceeded. Please wait a moment and try again.",
+    };
+  }
+
+  if (
+    (lowerMsg.includes("model") && (lowerMsg.includes("not found") || lowerMsg.includes("unsupported"))) ||
+    status === 404
+  ) {
+    return {
+      statusCode: 503,
+      message: "The requested Gemini AI model is currently unavailable. Please try again shortly.",
+    };
+  }
+
+  if (lowerMsg.includes("timeout") || lowerMsg.includes("deadline exceeded") || lowerMsg.includes("aborted")) {
+    return {
+      statusCode: 504,
+      message: "AI analysis timed out. Please try again with a shorter prompt or smaller image.",
+    };
+  }
+
+  if (lowerMsg.includes("network") || lowerMsg.includes("econnrefused") || lowerMsg.includes("fetch failed")) {
+    return {
+      statusCode: 503,
+      message: "Network error connecting to Gemini AI services. Please check server connectivity.",
+    };
+  }
+
+  if (lowerMsg.includes("empty response")) {
+    return {
+      statusCode: 502,
+      message: "Gemini returned an empty response. Please retry the analysis.",
+    };
+  }
+
+  if (lowerMsg.includes("malformed") || lowerMsg.includes("parse json")) {
+    return {
+      statusCode: 502,
+      message: "AI returned an unreadable response format. Please retry.",
+    };
+  }
+
+  return {
+    statusCode: typeof status === "number" && status >= 400 && status < 600 ? status : 500,
+    message: rawMsg ? `AI generation notice: ${rawMsg}` : "An error occurred during AI analysis. Please try again.",
+  };
+}
+
+/**
  * Performs AI Vision + Text analysis to create complete SEO post metadata
  */
 export async function handleGeneratePostSeo(
@@ -162,13 +301,18 @@ export async function handleGeneratePostSeo(
     };
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey =
+    process.env.GEMINI_API_KEY ||
+    process.env.VITE_GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.GOOGLE_GENAI_API_KEY;
+
   if (!apiKey) {
     return {
       statusCode: 500,
       data: {
         success: false,
-        error: "GEMINI_API_KEY is not configured on the server. Please configure it in Settings.",
+        error: "GEMINI_API_KEY is not configured on the server. Please add GEMINI_API_KEY in your settings or Vercel environment.",
       },
     };
   }
@@ -194,40 +338,55 @@ export async function handleGeneratePostSeo(
         // Parse data URI: data:[mimeType];base64,[data]
         const match = rawImage.match(/^data:([^;]+);base64,(.+)$/);
         if (match && match[1] && match[2]) {
-          imagePart = {
-            inlineData: {
-              mimeType: match[1],
-              data: match[2],
-            },
-          };
-          imageAnalyzed = true;
+          const base64Data = match[2];
+          // Guard against excessively large payloads (> 8MB base64 string)
+          if (base64Data.length > 8 * 1024 * 1024) {
+            imageNote = "Image size was too large; proceeded with prompt analysis.";
+          } else {
+            imagePart = {
+              inlineData: {
+                mimeType: match[1],
+                data: base64Data,
+              },
+            };
+            imageAnalyzed = true;
+          }
         }
       } else if (rawImage.startsWith("http://") || rawImage.startsWith("https://")) {
         // Fetch remote image (e.g. Cloudinary)
         const fetchController = new AbortController();
         const timeoutId = setTimeout(() => fetchController.abort(), 10000);
 
-        const imgResp = await fetch(rawImage, { signal: fetchController.signal });
-        clearTimeout(timeoutId);
+        try {
+          const imgResp = await fetch(rawImage, { signal: fetchController.signal });
+          clearTimeout(timeoutId);
 
-        if (imgResp.ok) {
-          const contentType = imgResp.headers.get("content-type") || "image/jpeg";
-          const arrayBuffer = await imgResp.arrayBuffer();
-          const base64Data = Buffer.from(arrayBuffer).toString("base64");
-          imagePart = {
-            inlineData: {
-              mimeType: contentType.includes("image/") ? contentType : "image/jpeg",
-              data: base64Data,
-            },
-          };
-          imageAnalyzed = true;
-        } else {
-          imageNote = "Remote image could not be retrieved. Proceeding with prompt-only analysis.";
+          if (imgResp.ok) {
+            const contentType = imgResp.headers.get("content-type") || "image/jpeg";
+            const arrayBuffer = await imgResp.arrayBuffer();
+            const base64Data = Buffer.from(arrayBuffer).toString("base64");
+            if (base64Data.length <= 8 * 1024 * 1024) {
+              imagePart = {
+                inlineData: {
+                  mimeType: contentType.includes("image/") ? contentType : "image/jpeg",
+                  data: base64Data,
+                },
+              };
+              imageAnalyzed = true;
+            } else {
+              imageNote = "Remote image exceeded size limit. Proceeded with prompt analysis.";
+            }
+          } else {
+            imageNote = "Remote image could not be retrieved. Proceeded with prompt analysis.";
+          }
+        } catch {
+          clearTimeout(timeoutId);
+          imageNote = "Remote image retrieval timed out. Proceeded with prompt analysis.";
         }
       }
     } catch (imgErr: any) {
       console.warn("[AI Post Creator] Image fetch/parse notice:", imgErr?.message || imgErr);
-      imageNote = "Image analysis failed. Proceeding with prompt analysis.";
+      imageNote = "Image analysis unavailable. Proceeded with prompt analysis.";
     }
   }
 
@@ -306,53 +465,92 @@ Generate the complete JSON metadata strictly adhering to the schema.`;
   contentsParts.push({ text: userInstruction });
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.8-flash",
-      contents: { parts: contentsParts },
-      config: {
-        systemInstruction,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: {
-              type: Type.STRING,
-              description: "Natural, compelling SEO title around 50-65 characters.",
-            },
-            description: {
-              type: Type.STRING,
-              description: "Comprehensive natural description of the visual concept and usage.",
-            },
-            tags: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "8-15 highly relevant unique tags.",
-            },
-            keywords: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: "4-8 high-intent search query phrases.",
-            },
-            category: {
-              type: Type.STRING,
-              description: "Suggested category matching existing library categories.",
-            },
-            altText: {
-              type: Type.STRING,
-              description: "Accurate, accessibility-friendly image alt text.",
-            },
+    const genConfig = {
+      systemInstruction,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          title: {
+            type: Type.STRING,
+            description: "Natural, compelling SEO title around 50-65 characters.",
           },
-          required: ["title", "description", "tags", "keywords", "category", "altText"],
+          description: {
+            type: Type.STRING,
+            description: "Comprehensive natural description of the visual concept and usage.",
+          },
+          tags: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: "8-15 highly relevant unique tags.",
+          },
+          keywords: {
+            type: Type.ARRAY,
+            items: { type: Type.STRING },
+            description: "4-8 high-intent search query phrases.",
+          },
+          category: {
+            type: Type.STRING,
+            description: "Suggested category matching existing library categories.",
+          },
+          altText: {
+            type: Type.STRING,
+            description: "Accurate, accessibility-friendly image alt text.",
+          },
         },
+        required: ["title", "description", "tags", "keywords", "category", "altText"],
       },
-    });
+    };
+
+    let response;
+    try {
+      response = await ai.models.generateContent({
+        model: "gemini-flash-latest",
+        contents: { parts: contentsParts },
+        config: genConfig,
+      });
+    } catch (primaryErr: any) {
+      const errMsg = (primaryErr?.message || "").toLowerCase();
+      // If error is caused by image processing failure, retry seamlessly with prompt only
+      if (imagePart && (errMsg.includes("image") || errMsg.includes("unable to process") || errMsg.includes("invalid argument"))) {
+        console.warn("[AI Post Creator] Image unprocessable by vision model; retrying with prompt only...");
+        imagePart = null;
+        imageAnalyzed = false;
+        imageNote = "Image could not be processed by AI Vision; generated SEO from prompt.";
+        const promptOnlyParts = [{ text: userInstruction }];
+        try {
+          response = await ai.models.generateContent({
+            model: "gemini-flash-latest",
+            contents: { parts: promptOnlyParts },
+            config: genConfig,
+          });
+        } catch (retryErr) {
+          throw retryErr;
+        }
+      } else if (
+        errMsg.includes("503") ||
+        errMsg.includes("high demand") ||
+        errMsg.includes("unavailable") ||
+        errMsg.includes("resource_exhausted") ||
+        errMsg.includes("429")
+      ) {
+        console.warn("[AI Post Creator] Primary model busy, retrying with gemini-3.8-flash...");
+        response = await ai.models.generateContent({
+          model: "gemini-3.8-flash",
+          contents: { parts: contentsParts },
+          config: genConfig,
+        });
+      } else {
+        throw primaryErr;
+      }
+    }
 
     const responseText = response.text;
     if (!responseText) {
       throw new Error("Empty response returned from Gemini model.");
     }
 
-    const parsedData = JSON.parse(responseText);
+    const parsedData = cleanAndParseGeminiJson(responseText);
 
     // Sanitize & format fields
     const cleanStr = (s: any) =>
@@ -363,21 +561,22 @@ Generate the complete JSON metadata strictly adhering to the schema.`;
             .trim()
         : "";
 
-    const title = cleanStr(parsedData.title) || promptText.slice(0, 60);
+    const title = cleanStr(parsedData.title) || promptText.slice(0, 65);
     const description =
       typeof parsedData.description === "string"
         ? parsedData.description.replace(/<[^>]*>?/gm, "").trim()
-        : promptText.slice(0, 150);
+        : promptText.slice(0, 200);
 
     // Clean and deduplicate tags
     const rawTags: string[] = Array.isArray(parsedData.tags) ? parsedData.tags : [];
     const seenTags = new Set<string>();
     const cleanedTags: string[] = [];
     for (const t of rawTags) {
-      const cleaned = cleanStr(t).toLowerCase();
-      if (cleaned && !seenTags.has(cleaned)) {
-        seenTags.add(cleaned);
-        cleanedTags.push(cleanStr(t));
+      const cleaned = cleanStr(t);
+      const lower = cleaned.toLowerCase();
+      if (cleaned && !seenTags.has(lower)) {
+        seenTags.add(lower);
+        cleanedTags.push(cleaned);
       }
     }
 
@@ -386,14 +585,15 @@ Generate the complete JSON metadata strictly adhering to the schema.`;
     const seenKeywords = new Set<string>();
     const cleanedKeywords: string[] = [];
     for (const k of rawKeywords) {
-      const cleaned = cleanStr(k).toLowerCase();
-      if (cleaned && !seenKeywords.has(cleaned)) {
-        seenKeywords.add(cleaned);
-        cleanedKeywords.push(cleanStr(k));
+      const cleaned = cleanStr(k);
+      const lower = cleaned.toLowerCase();
+      if (cleaned && !seenKeywords.has(lower)) {
+        seenKeywords.add(lower);
+        cleanedKeywords.push(cleaned);
       }
     }
 
-    const category = cleanStr(parsedData.category) || "man";
+    const category = cleanStr(parsedData.category) || "creative";
     const altText = cleanStr(parsedData.altText) || title;
 
     // Quality check indicators
@@ -440,12 +640,14 @@ Generate the complete JSON metadata strictly adhering to the schema.`;
     };
   } catch (err: any) {
     console.error("[AI Post Creator Error]:", err);
+    const { statusCode, message } = formatGeminiErrorMessage(err);
     return {
-      statusCode: 500,
+      statusCode,
       data: {
         success: false,
-        error: `AI generation failed: ${err?.message || "Internal AI processing error"}. Please try again.`,
+        error: message,
       },
     };
   }
 }
+

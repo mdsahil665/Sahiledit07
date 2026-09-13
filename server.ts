@@ -14,6 +14,18 @@ const PORT = 3000;
 app.use(express.json({ limit: "20mb" }));
 app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
+// Handle invalid JSON body payload errors gracefully without leaking HTML error pages
+app.use((err: any, req: any, res: any, next: any) => {
+  if (err instanceof SyntaxError && "body" in err) {
+    res.setHeader("Content-Type", "application/json");
+    return res.status(400).json({
+      success: false,
+      error: "Invalid JSON format in request body.",
+    });
+  }
+  next(err);
+});
+
 // --- API ROUTES ---
 
 app.get("/api/health", (req, res) => {
@@ -77,9 +89,17 @@ app.post("/api/payment/test-connection", async (req, res) => {
 // AI Smart Post Creator - SEO & Vision Analysis API
 app.post("/api/generate-post-seo", async (req, res) => {
   res.setHeader("Content-Type", "application/json");
-  const authHeader = req.headers?.authorization;
-  const result = await handleGeneratePostSeo(req.body, authHeader);
-  return res.status(result.statusCode).json(result.data);
+  try {
+    const authHeader = req.headers?.authorization;
+    const result = await handleGeneratePostSeo(req.body, authHeader);
+    return res.status(result.statusCode || 200).json(result.data);
+  } catch (err: any) {
+    console.error("[Express generate-post-seo error]:", err);
+    return res.status(500).json({
+      success: false,
+      error: err?.message || "Internal server error generating post SEO.",
+    });
+  }
 });
 
 async function startServer() {
