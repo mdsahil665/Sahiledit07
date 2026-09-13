@@ -286,7 +286,15 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
     }
   };
 
-  const handleAnalyzeSeo = async (retryPromptOnly = false) => {
+  const handleAnalyzeSeo = async (
+    retryPromptOnly = false,
+    event?: React.MouseEvent | React.FormEvent
+  ) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+
     const currentPrompt = photoPrompt.trim() || videoPrompt.trim();
     if (!currentPrompt) {
       showToast('Prompt Required', 'Please enter your AI prompt text to analyze.', 'error');
@@ -305,7 +313,12 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       const idToken = currentUser ? await currentUser.getIdToken().catch(() => null) : null;
       const existingTitles = promptStore.getPosts().map((p) => p.title).filter(Boolean);
 
-      const res = await requestAiPostSeo({
+      console.log('[AI Smart Post Creator] Initiating SEO generation for prompt:', currentPrompt.slice(0, 60), {
+        hasImage: Boolean(imageUrl && !retryPromptOnly),
+        retryPromptOnly,
+      });
+
+      let res = await requestAiPostSeo({
         prompt: currentPrompt,
         image: !retryPromptOnly ? (imageUrl || undefined) : undefined,
         categories,
@@ -313,21 +326,50 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
         idToken,
       });
 
+      // If vision or payload error occurs with image, seamlessly auto-fallback to prompt only!
+      if ((!res.success || !res.data) && imageUrl && !retryPromptOnly) {
+        console.warn('[AI Smart Post Creator] Vision analysis failed, retrying with prompt-only fallback...', res.error);
+        setAiAnalysisStep('Vision analysis unavailable. Completing SEO generation from prompt text...');
+        res = await requestAiPostSeo({
+          prompt: currentPrompt,
+          categories,
+          existingTitles,
+          idToken,
+        });
+        if (res.success && res.data) {
+          res.imageAnalyzed = false;
+          res.imageNote = 'SEO generated from prompt content (visual image could not be loaded).';
+        }
+      }
+
       if (!res.success || !res.data) {
-        setAiError(res.error || 'AI generation failed. Please try again.');
-        showToast('AI Generation Notice', res.error || 'AI generation failed. Please try again.', 'error');
+        const errorMsg = res.error || 'AI generation failed. Please try again or retry with prompt only.';
+        console.error('[AI Smart Post Creator] AI generation notice:', errorMsg);
+        setAiError(errorMsg);
+        showToast('AI Generation Notice', errorMsg, 'error');
         return;
       }
 
       const data = res.data;
       setAiResult(data);
-      setTitle(data.title);
-      setShortDescription(data.description);
-      setTagsInput(data.tags.join(', '));
-      setKeywordsInput(data.keywords.join(', '));
-      setAltText(data.altText);
-      setSeoTitle(data.title);
-      setMetaDescription(data.description);
+
+      if (data.title) {
+        setTitle(data.title);
+        setSeoTitle(data.title);
+      }
+      if (data.description) {
+        setShortDescription(data.description);
+        setMetaDescription(data.description);
+      }
+      if (Array.isArray(data.tags) && data.tags.length > 0) {
+        setTagsInput(data.tags.join(', '));
+      }
+      if (Array.isArray(data.keywords) && data.keywords.length > 0) {
+        setKeywordsInput(data.keywords.join(', '));
+      }
+      if (data.altText) {
+        setAltText(data.altText);
+      }
 
       setAiImageAnalyzed(res.imageAnalyzed ?? false);
       setAiImageNote(res.imageNote || null);
@@ -335,25 +377,33 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
       setAiSimilarTitle(res.similarExistingTitle || null);
       setAiQualityNotes(res.qualityNotes || []);
 
-      // Auto match category if found
-      if (data.category) {
-        const match = categories.find(
-          (c) =>
-            normalizeCategoryKey(c.id) === normalizeCategoryKey(data.category) ||
-            normalizeCategoryKey(c.name) === normalizeCategoryKey(data.category) ||
-            normalizeCategoryKey(c.slug) === normalizeCategoryKey(data.category)
-        );
-        if (match) {
-          setCategoryId(match.id);
-          setIsManualCategory(true);
+      // Auto match category safely if found
+      if (data.category && Array.isArray(categories)) {
+        try {
+          const targetCatKey = normalizeCategoryKey(data.category);
+          const match = categories.find((c) => {
+            if (!c) return false;
+            return (
+              (c.id && normalizeCategoryKey(c.id) === targetCatKey) ||
+              (c.name && normalizeCategoryKey(c.name) === targetCatKey) ||
+              (c.slug && normalizeCategoryKey(c.slug) === targetCatKey)
+            );
+          });
+          if (match && match.id) {
+            setCategoryId(match.id);
+            setIsManualCategory(true);
+          }
+        } catch (catErr) {
+          console.warn('[AI Post Creator] Category match notice:', catErr);
         }
       }
 
       showToast('✨ SEO Generated', 'Review and edit the generated metadata before publishing.', 'success');
     } catch (err: any) {
-      console.error('Error during AI analysis:', err);
-      setAiError('AI generation failed. Please try again.');
-      showToast('AI Error', 'AI generation failed. Please try again.', 'error');
+      console.error('[AI Smart Post Creator] Unexpected error during AI analysis:', err);
+      const errText = err?.message || 'AI generation failed. Please check your network and try again.';
+      setAiError(errText);
+      showToast('AI Error', errText, 'error');
     } finally {
       setAiAnalyzing(false);
     }
@@ -477,8 +527,11 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
     showToast('Image Removed', 'Removed image from gallery.', 'info');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
 
     if (!title.trim()) {
       showToast('Title Required', 'Please enter a title for the prompt', 'error');
@@ -636,6 +689,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
               </button>
 
               <button
+                type="button"
                 onClick={onClose}
                 className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
               >
@@ -689,8 +743,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
             )}
           </div>
 
-          {/* Form Scrollable Body */}
-          <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+          {/* Form Scrollable Body (div container ensures no accidental browser form-submission navigations) */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
             {isPreviewMode ? (
               /* Live Preview Card */
               <div className="p-6 rounded-3xl bg-zinc-950 border border-zinc-800 space-y-4">
@@ -896,7 +950,12 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                 <div className="space-y-3">
                   <button
                     type="button"
-                    onClick={() => handleAnalyzeSeo(false)}
+                    id="analyze-generate-seo-btn"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleAnalyzeSeo(false, e);
+                    }}
                     disabled={aiAnalyzing || (!photoPrompt.trim() && !videoPrompt.trim())}
                     className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 text-white font-black text-sm sm:text-base shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-3 transition-all cursor-pointer group active:scale-[0.99] border border-indigo-400/20"
                   >
@@ -927,7 +986,12 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                       </div>
                       <button
                         type="button"
-                        onClick={() => handleAnalyzeSeo(true)}
+                        id="retry-prompt-only-btn"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleAnalyzeSeo(true, e);
+                        }}
                         className="px-3 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/30 text-white font-bold text-[11px] shrink-0 cursor-pointer"
                       >
                         Retry Prompt Only
@@ -992,7 +1056,12 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
 
                       <button
                         type="button"
-                        onClick={() => handleAnalyzeSeo(false)}
+                        id="regenerate-seo-btn"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleAnalyzeSeo(false, e);
+                        }}
                         disabled={aiAnalyzing}
                         className="px-3.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-zinc-800 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
                       >
@@ -1885,7 +1954,12 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
 
                     <button
                       type="button"
-                      onClick={() => handleAnalyzeSeo(false)}
+                      id="standard-generate-seo-btn"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleAnalyzeSeo(false, e);
+                      }}
                       disabled={aiAnalyzing || (!photoPrompt.trim() && !videoPrompt.trim())}
                       className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
                     >
@@ -1973,7 +2047,8 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                 </button>
 
                 <button
-                  type="submit"
+                  type="button"
+                  onClick={handleSubmit}
                   disabled={isUploading}
                   className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs shadow-xl shadow-blue-600/20 flex items-center gap-2 transition-all cursor-pointer"
                 >
@@ -1999,7 +2074,7 @@ export const PostFormModal: React.FC<PostFormModalProps> = ({
                 </button>
               </div>
             </div>
-          </form>
+          </div>
         </motion.div>
       </div>
     </AnimatePresence>

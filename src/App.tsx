@@ -18,7 +18,9 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 import { PremiumPage } from './components/PremiumPage';
 import { PostFormModal } from './components/admin/PostFormModal';
 import { CategoryFormModal } from './components/admin/CategoryFormModal';
+import { AdminErrorBoundary } from './components/admin/AdminErrorBoundary';
 import { SEOHelper } from './components/SEOHelper';
+import { NotFoundPage } from './components/NotFoundPage';
 import { promptStore, sortPostsByCreatedAtDesc } from './services/promptStore';
 import { getPromptSlug, extractPromptIdFromParam, createSlugFromTitle } from './utils/promptUrl';
 import {
@@ -81,6 +83,7 @@ function AppContent() {
   // Modals
   const [activePromptModal, setActivePromptModal] = useState<PromptPost | null>(null);
   const [activePageModal, setActivePageModal] = useState<CustomPage | null>(null);
+  const [isRouteNotFound, setIsRouteNotFound] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [loginModalMode, setLoginModalMode] = useState<'login' | 'register' | 'reset'>('login');
   const [loginModalEmail, setLoginModalEmail] = useState('');
@@ -357,125 +360,48 @@ function AppContent() {
   }, []);
 
   // Parse URL search parameters and path on initial load and when posts load
+  // Unified URL route handler for deep links, sitelinks, clean paths, and 404s
   useEffect(() => {
-    const pathname = window.location.pathname;
-    const urlParams = new URLSearchParams(window.location.search);
-    const hash = window.location.hash;
-
-    let targetPromptSlugOrId: string | null = null;
-
-    if (pathname.startsWith('/prompt/')) {
-      const parts = pathname.split('/prompt/');
-      if (parts[1]) {
-        targetPromptSlugOrId = parts[1].split('/')[0];
-      }
-    } else if (pathname.startsWith('/post/')) {
-      const parts = pathname.split('/post/');
-      if (parts[1]) {
-        targetPromptSlugOrId = parts[1].split('/')[0];
-      }
-    } else if (urlParams.has('prompt') || urlParams.has('post') || urlParams.has('p')) {
-      targetPromptSlugOrId = urlParams.get('prompt') || urlParams.get('post') || urlParams.get('p');
-    }
-
-    if (targetPromptSlugOrId) {
-      const targetPost = findPostBySlugOrId(targetPromptSlugOrId);
-      if (targetPost && (!targetPost.status || targetPost.status === 'published')) {
-        setActivePromptModal(targetPost);
-      }
-    }
-  }, [posts, findPostBySlugOrId]);
-
-  // Parse URL search parameters on initial page load for deep-linking
-  useEffect(() => {
-    const pathname = window.location.pathname;
-    const urlParams = new URLSearchParams(window.location.search);
-    const hash = window.location.hash;
-
-    // Check for Firebase Password Reset Action (e.g. /reset-password?mode=resetPassword&oobCode=... or ?mode=resetPassword&oobCode=...)
-    const mode = urlParams.get('mode') || (hash.includes('mode=resetPassword') ? 'resetPassword' : null);
-    const oobCode = urlParams.get('oobCode') || urlParams.get('actionCode') || (hash.includes('oobCode=') ? new URLSearchParams(hash.substring(1)).get('oobCode') : null);
-
-    if (mode === 'resetPassword' || (pathname === '/reset-password' && oobCode) || oobCode) {
-      console.log('[Firebase Auth] Detected password reset link in URL with code:', oobCode ? '[REDACTED_CODE]' : 'missing');
-      setResetOobCode(oobCode);
-      setShowResetPasswordModal(true);
-    }
-
-    let targetPromptSlugOrId: string | null = null;
-
-    if (pathname.startsWith('/prompt/')) {
-      const parts = pathname.split('/prompt/');
-      if (parts[1]) {
-        targetPromptSlugOrId = parts[1].split('/')[0];
-      }
-    } else if (pathname.startsWith('/post/')) {
-      const parts = pathname.split('/post/');
-      if (parts[1]) {
-        targetPromptSlugOrId = parts[1].split('/')[0];
-      }
-    } else if (urlParams.has('prompt') || urlParams.has('post') || urlParams.has('p')) {
-      targetPromptSlugOrId = urlParams.get('prompt') || urlParams.get('post') || urlParams.get('p');
-    }
-
-    if (targetPromptSlugOrId) {
-      const targetPost = findPostBySlugOrId(targetPromptSlugOrId);
-      if (targetPost && (!targetPost.status || targetPost.status === 'published')) {
-        setActivePromptModal(targetPost);
-      }
-    } else {
-      // Direct visit or refresh at "/" ALWAYS renders the Home Page
-      setActivePromptModal(null);
-      if (hash && hash.startsWith('#post-')) {
-        const cleanSearch = window.location.search;
-        window.history.replaceState(null, '', `${pathname}${cleanSearch}` || '/');
-      }
-    }
-
-    const catFromQuery = urlParams.get('category') || urlParams.get('c');
-    if (catFromQuery) {
-      setSelectedCategory(catFromQuery);
-    }
-
-    const pageFromQuery = urlParams.get('page');
-    if (pageFromQuery) {
-      const allPages = promptStore.getPages();
-      const foundPage = allPages.find(
-        (p) => p.slug === pageFromQuery || p.id === pageFromQuery || p.title.toLowerCase() === pageFromQuery.toLowerCase()
-      );
-      if (foundPage && foundPage.status === 'published') {
-        setActivePageModal(foundPage);
-      }
-    }
-  }, [posts, findPostBySlugOrId]);
-
-  // Handle popstate for browser Back/Forward navigation
-  useEffect(() => {
-    const handlePopState = () => {
+    const handleRoute = () => {
       const pathname = window.location.pathname;
       const urlParams = new URLSearchParams(window.location.search);
       const hash = window.location.hash;
 
+      // 1. Password reset
       const mode = urlParams.get('mode') || (hash.includes('mode=resetPassword') ? 'resetPassword' : null);
-      const oobCode = urlParams.get('oobCode') || urlParams.get('actionCode') || (hash.includes('oobCode=') ? new URLSearchParams(hash.substring(1)).get('oobCode') : null);
+      const oobCode =
+        urlParams.get('oobCode') ||
+        urlParams.get('actionCode') ||
+        (hash.includes('oobCode=') ? new URLSearchParams(hash.substring(1)).get('oobCode') : null);
 
       if (mode === 'resetPassword' || (pathname === '/reset-password' && oobCode) || oobCode) {
         setResetOobCode(oobCode);
         setShowResetPasswordModal(true);
       }
 
-      let targetPromptSlugOrId: string | null = null;
+      // 2. Admin routes (supports /admin, /admin/*, as well as /adm, /adn aliases)
+      if (
+        pathname.startsWith('/admin') ||
+        pathname === '/adm' ||
+        pathname === '/adn' ||
+        pathname.startsWith('/adm/') ||
+        pathname.startsWith('/adn/') ||
+        urlParams.has('admin') ||
+        hash.includes('admin')
+      ) {
+        setIsRouteNotFound(false);
+        setShowAdminDashboard(true);
+        return;
+      }
 
+      // 3. Prompt deep links: /prompt/:slugOrId or /post/:slugOrId or ?prompt=... or ?post=...
+      let targetPromptSlugOrId: string | null = null;
       if (pathname.startsWith('/prompt/')) {
         const parts = pathname.split('/prompt/');
-        if (parts[1]) {
-          targetPromptSlugOrId = parts[1].replace(/\/$/, '');
-        }
+        if (parts[1]) targetPromptSlugOrId = parts[1].replace(/\/$/, '');
       } else if (pathname.startsWith('/post/')) {
         const parts = pathname.split('/post/');
-        if (parts[1]) {
-          targetPromptSlugOrId = parts[1].replace(/\/$/, '');
-        }
+        if (parts[1]) targetPromptSlugOrId = parts[1].replace(/\/$/, '');
       } else if (urlParams.has('prompt') || urlParams.has('post') || urlParams.has('p')) {
         targetPromptSlugOrId = urlParams.get('prompt') || urlParams.get('post') || urlParams.get('p');
       }
@@ -484,34 +410,127 @@ function AppContent() {
         const targetPost = findPostBySlugOrId(targetPromptSlugOrId);
         if (targetPost && (!targetPost.status || targetPost.status === 'published')) {
           setActivePromptModal(targetPost);
+          setIsRouteNotFound(false);
+          return;
+        } else if (posts.length > 0) {
+          // If posts finished loading and prompt is missing
+          setActivePromptModal(null);
+          setIsRouteNotFound(true);
+          return;
+        }
+      } else {
+        setActivePromptModal(null);
+      }
+
+      // 4. Category routes: /category/:slug or /c/:slug or ?category=...
+      let targetCategorySlug: string | null = null;
+      if (pathname.startsWith('/category/')) {
+        const parts = pathname.split('/category/');
+        if (parts[1]) targetCategorySlug = parts[1].replace(/\/$/, '');
+      } else if (pathname.startsWith('/c/')) {
+        const parts = pathname.split('/c/');
+        if (parts[1]) targetCategorySlug = parts[1].replace(/\/$/, '');
+      } else if (urlParams.has('category') || urlParams.has('c')) {
+        targetCategorySlug = urlParams.get('category') || urlParams.get('c');
+      }
+
+      if (targetCategorySlug) {
+        const norm = targetCategorySlug.toLowerCase().trim();
+        const foundCat = categories.find(
+          (c) =>
+            c.id.toLowerCase() === norm ||
+            c.slug.toLowerCase() === norm ||
+            c.name.toLowerCase() === norm
+        );
+        if (foundCat) {
+          setSelectedCategory(foundCat.id);
+          setIsRouteNotFound(false);
+          return;
+        } else if (categories.length > 0) {
+          setSelectedCategory(targetCategorySlug);
+          setIsRouteNotFound(false);
           return;
         }
       }
-      setActivePromptModal(null);
 
-      const catFromQuery = urlParams.get('category') || urlParams.get('c');
-      setSelectedCategory(catFromQuery || null);
+      // 5. Clean Sitelinks & Policy/Custom Pages
+      const cleanPath = pathname.toLowerCase().replace(/^\/|\/$/g, '');
+      const pageQuery = urlParams.get('page');
 
-      const pageFromQuery = urlParams.get('page');
-      if (pageFromQuery) {
-        const foundPage = promptStore.getPages().find((p) => p.slug === pageFromQuery || p.id === pageFromQuery);
+      const knownPageMappings: Record<string, string[]> = {
+        'about-us': ['about', 'about-us'],
+        'contact-us': ['contact', 'contact-us'],
+        'privacy-policy': ['privacy', 'privacy-policy'],
+        'terms-and-conditions': ['terms', 'terms-and-conditions', 'terms-of-service'],
+        'disclaimer': ['disclaimer'],
+        'dmca': ['dmca'],
+        'refund-policy': ['refund', 'refund-policy'],
+        'cookie-policy': ['cookie-policy', 'cookies'],
+      };
+
+      let matchedPageSlug: string | null = pageQuery || null;
+      if (!matchedPageSlug && cleanPath) {
+        for (const [canonicalSlug, aliases] of Object.entries(knownPageMappings)) {
+          if (aliases.includes(cleanPath)) {
+            matchedPageSlug = canonicalSlug;
+            break;
+          }
+        }
+      }
+
+      if (matchedPageSlug) {
+        const allPages = promptStore.getPages();
+        const foundPage = allPages.find(
+          (p) =>
+            p.slug.toLowerCase() === matchedPageSlug!.toLowerCase() ||
+            p.id.toLowerCase() === matchedPageSlug!.toLowerCase() ||
+            p.title.toLowerCase().replace(/\s+/g, '-') === matchedPageSlug!.toLowerCase()
+        );
         if (foundPage && foundPage.status === 'published') {
           setActivePageModal(foundPage);
+          setIsRouteNotFound(false);
+          return;
         }
       } else {
         setActivePageModal(null);
       }
 
-      setTimeout(() => {
-        window.scrollTo({ top: savedScrollPosition.current, behavior: 'instant' });
-      }, 30);
+      // 6. Section shortcuts: /prompts and /categories
+      if (cleanPath === 'prompts') {
+        setSelectedCategory(null);
+        setSearchQuery('');
+        setIsRouteNotFound(false);
+        setTimeout(() => {
+          document.getElementById('latest-posts-section')?.scrollIntoView({ behavior: 'smooth' });
+        }, 80);
+        return;
+      }
+      if (cleanPath === 'categories') {
+        setIsRouteNotFound(false);
+        setTimeout(() => {
+          document.getElementById('categories-section')?.scrollIntoView({ behavior: 'smooth' });
+        }, 80);
+        return;
+      }
+
+      // 7. Homepage
+      if (!cleanPath || cleanPath === '') {
+        setIsRouteNotFound(false);
+        return;
+      }
+
+      // 8. If unrecognized route and not special path
+      if (cleanPath && !['admin', 'adm', 'adn', 'reset-password', 'premium'].includes(cleanPath)) {
+        setIsRouteNotFound(true);
+      }
     };
 
-    window.addEventListener('popstate', handlePopState);
+    handleRoute();
+    window.addEventListener('popstate', handleRoute);
     return () => {
-      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('popstate', handleRoute);
     };
-  }, []);
+  }, [posts, categories, findPostBySlugOrId]);
 
   const handleCopyPrompt = useCallback((post: PromptPost) => {
     promptStore.incrementCopies(post.id);
@@ -628,23 +647,25 @@ function AppContent() {
         />
 
         {/* Modals triggerable from Admin Dashboard */}
-        <PostFormModal
-          isOpen={editingPostModal !== null}
-          post={typeof editingPostModal === 'object' ? editingPostModal : null}
-          categories={categories}
-          onClose={() => {
-            setEditingPostModal(null);
-            if (window.history.state?.type === 'admin-modal') {
-              window.history.back();
-            }
-          }}
-          onSave={(postData, existingId) => {
-            handleSavePost(postData, existingId);
-            if (window.history.state?.type === 'admin-modal') {
-              window.history.back();
-            }
-          }}
-        />
+        <AdminErrorBoundary fallbackTitle="AI Prompt Creator">
+          <PostFormModal
+            isOpen={editingPostModal !== null}
+            post={typeof editingPostModal === 'object' ? editingPostModal : null}
+            categories={categories}
+            onClose={() => {
+              setEditingPostModal(null);
+              if (window.history.state?.type === 'admin-modal') {
+                window.history.back();
+              }
+            }}
+            onSave={(postData, existingId) => {
+              handleSavePost(postData, existingId);
+              if (window.history.state?.type === 'admin-modal') {
+                window.history.back();
+              }
+            }}
+          />
+        </AdminErrorBoundary>
 
         <CategoryFormModal
           isOpen={editingCategoryModal !== null}
@@ -748,6 +769,7 @@ function AppContent() {
         categories={categories}
         activePage={activePageModal}
         isAdminView={showAdminDashboard}
+        isRouteNotFound={isRouteNotFound}
       />
 
       {/* Layered Background Glow Blobs */}
@@ -794,35 +816,54 @@ function AppContent() {
 
         {/* 2. Main Feed Container */}
         <main className="w-full flex-1 relative">
-          {/* Welcome Desktop Hero Section OR Dedicated Category Header */}
-          {selectedCategory ? (
-            websiteSections.hero !== false && (
-              <CategoryHeader
-                categoryName={selectedCategoryDisplayName || selectedCategory}
-                postCount={categoryPostCount}
-                activeTab={activeTab}
-                onSelectTab={setActiveTab}
-                onNavigateHome={() => {
-                  setSelectedCategory(null);
-                  setSearchQuery('');
-                }}
-                websiteSections={websiteSections}
-              />
-            )
+          {isRouteNotFound ? (
+            <NotFoundPage
+              onNavigateHome={() => {
+                setIsRouteNotFound(false);
+                setSelectedCategory(null);
+                setSearchQuery('');
+                setActivePromptModal(null);
+                setActivePageModal(null);
+                window.history.pushState(null, '', '/');
+              }}
+              onSelectCategory={(catId) => {
+                setIsRouteNotFound(false);
+                setSelectedCategory(catId);
+                window.history.pushState({ category: catId }, '', `/?category=${encodeURIComponent(catId)}`);
+              }}
+              categories={categories}
+            />
           ) : (
-            featureControls.homepageBanner && websiteSections.hero !== false && (
-              <Hero
-                categories={categories}
-                searchQuery={searchQuery}
-                onSearchChange={setSearchQuery}
-                selectedCategory={selectedCategory}
-                onSelectCategory={setSelectedCategory}
-                activeTab={activeTab}
-                onSelectTab={setActiveTab}
-                websiteSections={websiteSections}
-              />
-            )
-          )}
+            <>
+              {/* Welcome Desktop Hero Section OR Dedicated Category Header */}
+              {selectedCategory ? (
+                websiteSections.hero !== false && (
+                  <CategoryHeader
+                    categoryName={selectedCategoryDisplayName || selectedCategory}
+                    postCount={categoryPostCount}
+                    activeTab={activeTab}
+                    onSelectTab={setActiveTab}
+                    onNavigateHome={() => {
+                      setSelectedCategory(null);
+                      setSearchQuery('');
+                    }}
+                    websiteSections={websiteSections}
+                  />
+                )
+              ) : (
+                featureControls.homepageBanner && websiteSections.hero !== false && (
+                  <Hero
+                    categories={categories}
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    selectedCategory={selectedCategory}
+                    onSelectCategory={setSelectedCategory}
+                    activeTab={activeTab}
+                    onSelectTab={setActiveTab}
+                    websiteSections={websiteSections}
+                  />
+                )
+              )}
 
           {/* Homepage Banner Ad Position */}
           {monetizationSettings?.enabled && monetizationSettings?.positions?.homepageBanner && (
@@ -974,11 +1015,31 @@ function AppContent() {
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[#0f172a] dark:text-white mb-4 tracking-tight">
                 What is Sahil Edits?
               </h2>
-              <p className="text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-300 leading-relaxed font-normal">
-                Sahil Edits is a premium AI prompt library created for creators, photographers, editors, designers, and AI enthusiasts. Discover carefully crafted and practical AI photo editing prompts for Gemini, ChatGPT, and other AI tools. Our goal is to make high-quality prompts easy to discover, copy, and use, so anyone can create stunning results with just a few clicks.
+              <p className="text-sm sm:text-base md:text-lg text-slate-600 dark:text-slate-300 leading-relaxed font-normal mb-6">
+                Sahil Edits is a premium AI prompt library created for creators, photographers, editors, designers, and AI enthusiasts. Discover carefully crafted and practical AI photo editing prompts for Gemini, ChatGPT, and other top AI tools. Our goal is to make high-quality prompts easy to discover, copy, and use, so anyone can create stunning visual results with just a few clicks.
               </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800 text-left">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">AI Prompt Library</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Curated, tested prompt templates across trending styles and tools.</p>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Creative AI Prompts</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Optimized for Google Gemini, ChatGPT, Midjourney, and more.</p>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">1-Click Fast Copy</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Instant prompt copying without logins or complex steps.</p>
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Free &amp; Regularly Updated</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Fresh creative prompts added and verified continuously.</p>
+                </div>
+              </div>
             </div>
           </div>
+          </>
+        )}
 
           {/* Bottom Banner Ad Position */}
           <div className="max-w-[1400px] 2xl:max-w-[1600px] mx-auto px-4 py-2 w-full">

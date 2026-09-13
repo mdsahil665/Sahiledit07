@@ -99,13 +99,36 @@ export function getAdminTabFromUrl(url?: string): AdminTab | null {
   const search = targetUrl.search;
   const hash = targetUrl.hash.toLowerCase();
 
-  // 1. Check path: /admin or /admin/:slug
-  if (pathname === '/admin' || pathname === '/admin/') {
+  // 1. Check path: /admin, /admin/:slug, and aliases /adm, /adn
+  if (
+    pathname === '/admin' ||
+    pathname === '/admin/' ||
+    pathname === '/adm' ||
+    pathname === '/adm/' ||
+    pathname === '/adn' ||
+    pathname === '/adn/'
+  ) {
     return 'dashboard';
   }
 
   if (pathname.startsWith('/admin/')) {
     const sub = pathname.replace('/admin/', '').split('/')[0].trim();
+    if (sub && SLUG_TO_TAB[sub]) {
+      return SLUG_TO_TAB[sub];
+    }
+    return 'dashboard';
+  }
+
+  if (pathname.startsWith('/adm/')) {
+    const sub = pathname.replace('/adm/', '').split('/')[0].trim();
+    if (sub && SLUG_TO_TAB[sub]) {
+      return SLUG_TO_TAB[sub];
+    }
+    return 'dashboard';
+  }
+
+  if (pathname.startsWith('/adn/')) {
+    const sub = pathname.replace('/adn/', '').split('/')[0].trim();
     if (sub && SLUG_TO_TAB[sub]) {
       return SLUG_TO_TAB[sub];
     }
